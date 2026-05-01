@@ -1,0 +1,11 @@
+obj_dir/
+*.vcd
+*.fst
+*.log
+*.jou
+*.wlf
+transcript
+work/
+results/simulation_logs/*
+results/waveforms/*
+results/synthesis_reports/*
