@@ -11,6 +11,9 @@ module tb_simple_and;
     );
 
     initial begin
+        $dumpfile("results/waveforms/simple_and.vcd");
+        $dumpvars(0, tb_simple_and);
+
         a = 0; b = 0; #1;
         $display("a=%0b b=%0b y=%0b", a, b, y);
 
