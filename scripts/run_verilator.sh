@@ -114,6 +114,7 @@ case "$TEST" in
             rtl/dependency_tracker.sv \
             rtl/scheduler.sv \
             rtl/execution_controller.sv \
+            rtl/measurement_controller.sv \
             rtl/quantum_controller_top.sv \
             tb/tb_quantum_controller_top.sv
         ;;

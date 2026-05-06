@@ -13,6 +13,9 @@ module quantum_controller_top #(
     input  logic                    instr_valid_i,
     output logic                    instr_ready_o,
 
+    input  logic                    measurement_result_valid_i,
+    input  logic                    measurement_result_i,
+
     output logic                    issue_valid_o,
     output qc_opcode_e              issue_opcode_o,
     output logic [QUBIT_ID_W-1:0]   issue_target_qubit_o,
@@ -33,6 +36,17 @@ module quantum_controller_top #(
     output logic                    reset_cmd_o,
     output logic                    branch_cmd_o,
     output logic                    nop_cmd_o,
+
+    output logic                    measure_request_valid_o,
+    output logic [QUBIT_ID_W-1:0]   measure_qubit_o,
+    output logic                    measurement_busy_o,
+
+    output logic                    measurement_result_out_valid_o,
+    output logic [QUBIT_ID_W-1:0]   measurement_result_qubit_o,
+    output logic                    measurement_result_value_o,
+    output logic [NUM_QUBITS-1:0]   measurement_valid_o,
+    output logic [NUM_QUBITS-1:0]   measurement_results_o,
+    output logic                    unexpected_measurement_result_o,
 
     output logic                    scheduler_stall_o,
     output logic                    illegal_instr_o,
@@ -62,6 +76,7 @@ module quantum_controller_top #(
 
     logic                   sched_issue_valid;
     logic                   execution_ready;
+    logic                   measurement_command_ready;
     logic                   illegal_q;
 
     instruction_decoder u_instruction_decoder (
@@ -143,6 +158,34 @@ module quantum_controller_top #(
         .nop_cmd_o       (nop_cmd_o),
 
         .illegal_issue_o (illegal_issue_o)
+    );
+
+    measurement_controller #(
+        .NUM_QUBITS(NUM_QUBITS)
+    ) u_measurement_controller (
+        .clk_i                      (clk_i),
+        .rst_ni                     (rst_ni),
+
+        .command_valid_i            (command_valid_o),
+        .command_instr_i            (command_instr),
+        .command_ready_o            (measurement_command_ready),
+
+        .measurement_result_valid_i (measurement_result_valid_i),
+        .measurement_result_i       (measurement_result_i),
+
+        .measure_request_valid_o    (measure_request_valid_o),
+        .measure_qubit_o            (measure_qubit_o),
+
+        .measurement_busy_o         (measurement_busy_o),
+
+        .result_valid_o             (measurement_result_out_valid_o),
+        .result_qubit_o             (measurement_result_qubit_o),
+        .result_value_o             (measurement_result_value_o),
+
+        .measurement_valid_o        (measurement_valid_o),
+        .measurement_results_o      (measurement_results_o),
+
+        .unexpected_result_o        (unexpected_measurement_result_o)
     );
 
     assign issue_valid_o         = sched_issue_valid;
