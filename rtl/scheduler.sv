@@ -24,57 +24,52 @@ module scheduler #(
 
     logic [DURATION_W-1:0] busy_cnt_q [NUM_QUBITS];
 
-    logic uses_target;
-    logic uses_control;
-    logic target_busy;
-    logic control_busy;
-    logic hazard;
-    logic can_issue;
+    logic [NUM_QUBITS-1:0] qubit_busy;
+
+    logic tracker_uses_target;
+    logic tracker_uses_control;
+    logic [NUM_QUBITS-1:0] tracker_qubit_mask;
+    logic tracker_target_busy;
+    logic tracker_control_busy;
+    logic tracker_dependency_hazard;
+    logic tracker_independent;
 
     logic [DURATION_W-1:0] operation_duration;
+    logic can_issue;
 
     assign operation_duration = (instr_i.duration == '0) ? ONE_CYCLE : instr_i.duration;
 
     always_comb begin
-        uses_target  = 1'b0;
-        uses_control = 1'b0;
-
-        unique case (instr_i.opcode)
-            OP_H,
-            OP_X,
-            OP_Z,
-            OP_MEASURE,
-            OP_RESET: begin
-                uses_target  = 1'b1;
-                uses_control = 1'b0;
-            end
-
-            OP_CNOT: begin
-                uses_target  = 1'b1;
-                uses_control = 1'b1;
-            end
-
-            default: begin
-                uses_target  = 1'b0;
-                uses_control = 1'b0;
-            end
-        endcase
-    end
-
-    assign target_busy  = uses_target  ? (busy_cnt_q[instr_i.target_qubit]  != '0) : 1'b0;
-    assign control_busy = uses_control ? (busy_cnt_q[instr_i.control_qubit] != '0) : 1'b0;
-
-    assign hazard    = target_busy || control_busy;
-    assign can_issue = instr_valid_i && !hazard;
-
-    assign queue_pop_o = can_issue;
-    assign stall_o     = instr_valid_i && hazard;
-
-    always_comb begin
         for (int i = 0; i < NUM_QUBITS; i++) begin
-            qubit_busy_o[i] = (busy_cnt_q[i] != '0);
+            qubit_busy[i] = (busy_cnt_q[i] != '0);
         end
     end
+
+    assign qubit_busy_o = qubit_busy;
+
+    dependency_tracker #(
+        .NUM_QUBITS(NUM_QUBITS)
+    ) u_dependency_tracker (
+        .instr_valid_i       (instr_valid_i),
+        .instr_i             (instr_i),
+
+        .qubit_busy_i        (qubit_busy),
+
+        .uses_target_o       (tracker_uses_target),
+        .uses_control_o      (tracker_uses_control),
+
+        .qubit_mask_o        (tracker_qubit_mask),
+
+        .target_busy_o       (tracker_target_busy),
+        .control_busy_o      (tracker_control_busy),
+
+        .dependency_hazard_o (tracker_dependency_hazard),
+        .independent_o       (tracker_independent)
+    );
+
+    assign can_issue   = tracker_independent;
+    assign queue_pop_o = can_issue;
+    assign stall_o     = instr_valid_i && tracker_dependency_hazard;
 
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
@@ -98,11 +93,11 @@ module scheduler #(
                 issue_valid_o <= 1'b1;
                 issue_instr_o <= instr_i;
 
-                if (uses_target) begin
+                if (tracker_uses_target) begin
                     busy_cnt_q[instr_i.target_qubit] <= operation_duration;
                 end
 
-                if (uses_control) begin
+                if (tracker_uses_control) begin
                     busy_cnt_q[instr_i.control_qubit] <= operation_duration;
                 end
             end
