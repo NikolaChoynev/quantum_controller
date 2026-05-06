@@ -52,6 +52,7 @@ if [[ "$TEST" == "all" ]]; then
     "$0" tb_scheduler
     "$0" tb_execution_controller
     "$0" tb_measurement_controller
+    "$0" tb_feedback_unit
     "$0" tb_quantum_controller_top
     exit 0
 fi
@@ -106,6 +107,13 @@ case "$TEST" in
             tb/tb_measurement_controller.sv
         ;;
 
+    tb_feedback_unit)
+        run_test tb_feedback_unit \
+            rtl/qc_pkg.sv \
+            rtl/feedback_unit.sv \
+            tb/tb_feedback_unit.sv
+        ;;
+
     tb_quantum_controller_top)
         run_test tb_quantum_controller_top \
             rtl/qc_pkg.sv \
@@ -130,6 +138,7 @@ case "$TEST" in
         echo "  tb_scheduler"
         echo "  tb_execution_controller"
         echo "  tb_measurement_controller"
+        echo "  tb_feedback_unit"
         echo "  tb_quantum_controller_top"
         echo "  all"
         exit 1
