@@ -20,8 +20,23 @@ module quantum_controller_top #(
     output logic [DURATION_W-1:0]   issue_duration_o,
     output logic [FLAGS_W-1:0]      issue_flags_o,
 
+    output logic                    command_valid_o,
+    output qc_opcode_e              command_opcode_o,
+    output logic [QUBIT_ID_W-1:0]   command_target_qubit_o,
+    output logic [QUBIT_ID_W-1:0]   command_control_qubit_o,
+    output logic [DURATION_W-1:0]   command_duration_o,
+    output logic [FLAGS_W-1:0]      command_flags_o,
+
+    output logic                    gate_cmd_o,
+    output logic                    measure_cmd_o,
+    output logic                    wait_cmd_o,
+    output logic                    reset_cmd_o,
+    output logic                    branch_cmd_o,
+    output logic                    nop_cmd_o,
+
     output logic                    scheduler_stall_o,
     output logic                    illegal_instr_o,
+    output logic                    illegal_issue_o,
 
     output logic [$clog2(QUEUE_DEPTH+1)-1:0] queue_count_o,
     output logic [NUM_QUBITS-1:0]             qubit_busy_o
@@ -38,6 +53,7 @@ module quantum_controller_top #(
     qc_instr_fields_t       decoded_instr;
     qc_instr_fields_t       queue_instr;
     qc_instr_fields_t       sched_issue_instr;
+    qc_instr_fields_t       command_instr;
 
     logic                   queue_push;
     logic                   queue_full;
@@ -45,6 +61,7 @@ module quantum_controller_top #(
     logic                   queue_pop;
 
     logic                   sched_issue_valid;
+    logic                   execution_ready;
     logic                   illegal_q;
 
     instruction_decoder u_instruction_decoder (
@@ -107,12 +124,39 @@ module quantum_controller_top #(
         .qubit_busy_o  (qubit_busy_o)
     );
 
+    execution_controller u_execution_controller (
+        .clk_i           (clk_i),
+        .rst_ni          (rst_ni),
+
+        .issue_valid_i   (sched_issue_valid),
+        .issue_instr_i   (sched_issue_instr),
+        .issue_ready_o   (execution_ready),
+
+        .command_valid_o (command_valid_o),
+        .command_instr_o (command_instr),
+
+        .gate_cmd_o      (gate_cmd_o),
+        .measure_cmd_o   (measure_cmd_o),
+        .wait_cmd_o      (wait_cmd_o),
+        .reset_cmd_o     (reset_cmd_o),
+        .branch_cmd_o    (branch_cmd_o),
+        .nop_cmd_o       (nop_cmd_o),
+
+        .illegal_issue_o (illegal_issue_o)
+    );
+
     assign issue_valid_o         = sched_issue_valid;
     assign issue_opcode_o        = sched_issue_valid ? sched_issue_instr.opcode        : OP_NOP;
     assign issue_target_qubit_o  = sched_issue_valid ? sched_issue_instr.target_qubit  : '0;
     assign issue_control_qubit_o = sched_issue_valid ? sched_issue_instr.control_qubit : '0;
     assign issue_duration_o      = sched_issue_valid ? sched_issue_instr.duration      : '0;
     assign issue_flags_o         = sched_issue_valid ? sched_issue_instr.flags         : '0;
+
+    assign command_opcode_o        = command_valid_o ? command_instr.opcode        : OP_NOP;
+    assign command_target_qubit_o  = command_valid_o ? command_instr.target_qubit  : '0;
+    assign command_control_qubit_o = command_valid_o ? command_instr.control_qubit : '0;
+    assign command_duration_o      = command_valid_o ? command_instr.duration      : '0;
+    assign command_flags_o         = command_valid_o ? command_instr.flags         : '0;
 
     assign illegal_instr_o = illegal_q;
 
