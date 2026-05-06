@@ -3,7 +3,8 @@
 import qc_pkg::*;
 
 module quantum_controller_top #(
-    parameter int QUEUE_DEPTH = 4
+    parameter int QUEUE_DEPTH = 4,
+    parameter int NUM_QUBITS  = MAX_QUBITS
 ) (
     input  logic                    clk_i,
     input  logic                    rst_ni,
@@ -12,18 +13,18 @@ module quantum_controller_top #(
     input  logic                    instr_valid_i,
     output logic                    instr_ready_o,
 
-    input  logic                    operation_pop_i,
+    output logic                    issue_valid_o,
+    output qc_opcode_e              issue_opcode_o,
+    output logic [QUBIT_ID_W-1:0]   issue_target_qubit_o,
+    output logic [QUBIT_ID_W-1:0]   issue_control_qubit_o,
+    output logic [DURATION_W-1:0]   issue_duration_o,
+    output logic [FLAGS_W-1:0]      issue_flags_o,
 
-    output qc_opcode_e              opcode_o,
-    output logic [QUBIT_ID_W-1:0]   target_qubit_o,
-    output logic [QUBIT_ID_W-1:0]   control_qubit_o,
-    output logic [DURATION_W-1:0]   duration_o,
-    output logic [FLAGS_W-1:0]      flags_o,
-
-    output logic                    decoded_valid_o,
+    output logic                    scheduler_stall_o,
     output logic                    illegal_instr_o,
 
-    output logic [$clog2(QUEUE_DEPTH+1)-1:0] queue_count_o
+    output logic [$clog2(QUEUE_DEPTH+1)-1:0] queue_count_o,
+    output logic [NUM_QUBITS-1:0]             qubit_busy_o
 );
 
     qc_opcode_e             dec_opcode;
@@ -36,10 +37,14 @@ module quantum_controller_top #(
 
     qc_instr_fields_t       decoded_instr;
     qc_instr_fields_t       queue_instr;
+    qc_instr_fields_t       sched_issue_instr;
 
     logic                   queue_push;
     logic                   queue_full;
     logic                   queue_empty;
+    logic                   queue_pop;
+
+    logic                   sched_issue_valid;
     logic                   illegal_q;
 
     instruction_decoder u_instruction_decoder (
@@ -77,21 +82,39 @@ module quantum_controller_top #(
         .instr_i (decoded_instr),
         .full_o  (queue_full),
 
-        .pop_i   (operation_pop_i),
+        .pop_i   (queue_pop),
         .instr_o (queue_instr),
         .empty_o (queue_empty),
 
         .count_o (queue_count_o)
     );
 
-    assign opcode_o         = queue_empty ? OP_NOP : queue_instr.opcode;
-    assign target_qubit_o   = queue_empty ? '0     : queue_instr.target_qubit;
-    assign control_qubit_o  = queue_empty ? '0     : queue_instr.control_qubit;
-    assign duration_o       = queue_empty ? '0     : queue_instr.duration;
-    assign flags_o          = queue_empty ? '0     : queue_instr.flags;
+    scheduler #(
+        .NUM_QUBITS(NUM_QUBITS)
+    ) u_scheduler (
+        .clk_i         (clk_i),
+        .rst_ni        (rst_ni),
 
-    assign decoded_valid_o  = !queue_empty;
-    assign illegal_instr_o  = illegal_q;
+        .instr_valid_i (!queue_empty),
+        .instr_i       (queue_instr),
+
+        .queue_pop_o   (queue_pop),
+
+        .issue_valid_o (sched_issue_valid),
+        .issue_instr_o (sched_issue_instr),
+
+        .stall_o       (scheduler_stall_o),
+        .qubit_busy_o  (qubit_busy_o)
+    );
+
+    assign issue_valid_o         = sched_issue_valid;
+    assign issue_opcode_o        = sched_issue_valid ? sched_issue_instr.opcode        : OP_NOP;
+    assign issue_target_qubit_o  = sched_issue_valid ? sched_issue_instr.target_qubit  : '0;
+    assign issue_control_qubit_o = sched_issue_valid ? sched_issue_instr.control_qubit : '0;
+    assign issue_duration_o      = sched_issue_valid ? sched_issue_instr.duration      : '0;
+    assign issue_flags_o         = sched_issue_valid ? sched_issue_instr.flags         : '0;
+
+    assign illegal_instr_o = illegal_q;
 
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
