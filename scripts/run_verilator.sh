@@ -51,6 +51,7 @@ if [[ "$TEST" == "all" ]]; then
     "$0" tb_dependency_tracker
     "$0" tb_scheduler
     "$0" tb_execution_controller
+    "$0" tb_measurement_controller
     "$0" tb_quantum_controller_top
     exit 0
 fi
@@ -98,6 +99,13 @@ case "$TEST" in
             tb/tb_execution_controller.sv
         ;;
 
+    tb_measurement_controller)
+        run_test tb_measurement_controller \
+            rtl/qc_pkg.sv \
+            rtl/measurement_controller.sv \
+            tb/tb_measurement_controller.sv
+        ;;
+
     tb_quantum_controller_top)
         run_test tb_quantum_controller_top \
             rtl/qc_pkg.sv \
@@ -120,6 +128,7 @@ case "$TEST" in
         echo "  tb_dependency_tracker"
         echo "  tb_scheduler"
         echo "  tb_execution_controller"
+        echo "  tb_measurement_controller"
         echo "  tb_quantum_controller_top"
         echo "  all"
         exit 1
