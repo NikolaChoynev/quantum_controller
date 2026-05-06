@@ -50,6 +50,7 @@ if [[ "$TEST" == "all" ]]; then
     "$0" tb_operation_queue
     "$0" tb_dependency_tracker
     "$0" tb_scheduler
+    "$0" tb_execution_controller
     "$0" tb_quantum_controller_top
     exit 0
 fi
@@ -85,8 +86,16 @@ case "$TEST" in
     tb_scheduler)
         run_test tb_scheduler \
             rtl/qc_pkg.sv \
+            rtl/dependency_tracker.sv \
             rtl/scheduler.sv \
             tb/tb_scheduler.sv
+        ;;
+
+    tb_execution_controller)
+        run_test tb_execution_controller \
+            rtl/qc_pkg.sv \
+            rtl/execution_controller.sv \
+            tb/tb_execution_controller.sv
         ;;
 
     tb_quantum_controller_top)
@@ -94,6 +103,7 @@ case "$TEST" in
             rtl/qc_pkg.sv \
             rtl/instruction_decoder.sv \
             rtl/operation_queue.sv \
+            rtl/dependency_tracker.sv \
             rtl/scheduler.sv \
             rtl/quantum_controller_top.sv \
             tb/tb_quantum_controller_top.sv
@@ -108,6 +118,7 @@ case "$TEST" in
         echo "  tb_operation_queue"
         echo "  tb_dependency_tracker"
         echo "  tb_scheduler"
+        echo "  tb_execution_controller"
         echo "  tb_quantum_controller_top"
         echo "  all"
         exit 1
