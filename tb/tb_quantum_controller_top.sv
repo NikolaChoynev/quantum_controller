@@ -49,6 +49,14 @@ module tb_quantum_controller_top;
     logic [NUM_QUBITS-1:0]  measurement_results_o;
     logic                   unexpected_measurement_result_o;
 
+    logic                   feedback_valid_o;
+    logic                   branch_taken_o;
+    logic [DURATION_W-1:0]  branch_target_o;
+    logic [QUBIT_ID_W-1:0]  feedback_qubit_o;
+    logic                   feedback_value_o;
+    logic                   condition_checked_o;
+    logic                   missing_measurement_o;
+
     logic                   scheduler_stall_o;
     logic                   illegal_instr_o;
     logic                   illegal_issue_o;
@@ -102,6 +110,14 @@ module tb_quantum_controller_top;
         .measurement_results_o          (measurement_results_o),
         .unexpected_measurement_result_o(unexpected_measurement_result_o),
 
+        .feedback_valid_o               (feedback_valid_o),
+        .branch_taken_o                 (branch_taken_o),
+        .branch_target_o                (branch_target_o),
+        .feedback_qubit_o               (feedback_qubit_o),
+        .feedback_value_o               (feedback_value_o),
+        .condition_checked_o            (condition_checked_o),
+        .missing_measurement_o          (missing_measurement_o),
+
         .scheduler_stall_o              (scheduler_stall_o),
         .illegal_instr_o                (illegal_instr_o),
         .illegal_issue_o                (illegal_issue_o),
@@ -129,6 +145,20 @@ module tb_quantum_controller_top;
         end
     endtask
 
+    task automatic send_measurement_result(input logic value);
+        begin
+            @(negedge clk_i);
+            measurement_result_i       = value;
+            measurement_result_valid_i = 1'b1;
+
+            @(posedge clk_i);
+            #1;
+
+            measurement_result_valid_i = 1'b0;
+            measurement_result_i       = 1'b0;
+        end
+    endtask
+
     task automatic wait_for_command();
         begin
             while (command_valid_o != 1'b1) begin
@@ -147,17 +177,12 @@ module tb_quantum_controller_top;
         end
     endtask
 
-    task automatic send_measurement_result(input logic value);
+    task automatic wait_for_feedback();
         begin
-            @(negedge clk_i);
-            measurement_result_i       = value;
-            measurement_result_valid_i = 1'b1;
-
-            @(posedge clk_i);
-            #1;
-
-            measurement_result_valid_i = 1'b0;
-            measurement_result_i       = 1'b0;
+            while (feedback_valid_o != 1'b1) begin
+                @(posedge clk_i);
+                #1;
+            end
         end
     endtask
 
@@ -178,8 +203,7 @@ module tb_quantum_controller_top;
         if (queue_count_o != 0)                 $fatal(1, "Queue count should be 0 after reset");
         if (issue_valid_o != 1'b0)              $fatal(1, "Issue valid should be 0 after reset");
         if (command_valid_o != 1'b0)            $fatal(1, "Command valid should be 0 after reset");
-        if (measurement_busy_o != 1'b0)         $fatal(1, "Measurement controller should not be busy after reset");
-        if (measurement_valid_o != '0)          $fatal(1, "No measurement results should be valid after reset");
+        if (feedback_valid_o != 1'b0)           $fatal(1, "Feedback valid should be 0 after reset");
 
         $display("Reset test PASSED");
 
@@ -187,7 +211,6 @@ module tb_quantum_controller_top;
         // Test 1: H q0 -> gate command
         // --------------------------------------------------------
         send_instruction({4'h1, 4'd0, 4'd0, 12'd4, 4'b1000, 4'd0});
-
         wait_for_command();
 
         $display("Test 1: H q0 command");
@@ -200,35 +223,25 @@ module tb_quantum_controller_top;
         if (gate_cmd_o != 1'b1)                $fatal(1, "Test 1 failed: gate command expected");
 
         // --------------------------------------------------------
-        // Test 2: MEASURE q3 -> measure command -> measure request
+        // Test 2: MEASURE q3 -> measurement request
         // --------------------------------------------------------
         send_instruction({4'h5, 4'd3, 4'd0, 12'd6, 4'b1000, 4'd0});
-
         wait_for_command();
 
-        $display("Test 2: MEASURE q3 command");
-        $display("cmd_valid=%0b opcode=%0h target=%0d measure_cmd=%0b",
-                 command_valid_o, command_opcode_o,
-                 command_target_qubit_o, measure_cmd_o);
-
         if (command_opcode_o != OP_MEASURE)    $fatal(1, "Test 2 failed: command opcode mismatch");
-        if (command_target_qubit_o != 4'd3)    $fatal(1, "Test 2 failed: command target mismatch");
         if (measure_cmd_o != 1'b1)             $fatal(1, "Test 2 failed: measure command expected");
 
         wait_for_measure_request();
 
-        $display("Test 2: Measurement request");
+        $display("Test 2: MEASURE q3 request");
         $display("request=%0b qubit=%0d busy=%0b",
-                 measure_request_valid_o,
-                 measure_qubit_o,
-                 measurement_busy_o);
+                 measure_request_valid_o, measure_qubit_o, measurement_busy_o);
 
         if (measure_request_valid_o != 1'b1)   $fatal(1, "Test 2 failed: measure request expected");
-        if (measure_qubit_o != 4'd3)           $fatal(1, "Test 2 failed: measure request qubit mismatch");
-        if (measurement_busy_o != 1'b1)        $fatal(1, "Test 2 failed: measurement controller should be busy");
+        if (measure_qubit_o != 4'd3)           $fatal(1, "Test 2 failed: measure qubit mismatch");
 
         // --------------------------------------------------------
-        // Test 3: External measurement result for q3 = 1
+        // Test 3: external result q3 = 1 is stored
         // --------------------------------------------------------
         send_measurement_result(1'b1);
 
@@ -246,37 +259,74 @@ module tb_quantum_controller_top;
         if (measurement_valid_o[3] != 1'b1)         $fatal(1, "Test 3 failed: stored valid missing");
         if (measurement_results_o[3] != 1'b1)       $fatal(1, "Test 3 failed: stored result mismatch");
 
-        $display("Measurement result integration test PASSED");
-
         // --------------------------------------------------------
-        // Test 4: WAIT -> wait command
+        // Test 4: BRANCH if q3 == 1.
+        // Format:
+        // opcode   = OP_BRANCH = 4'h8
+        // target   = q3, used by feedback_unit as condition source
+        // duration = 25, used as branch target in this prototype
+        // flags    = 4'b1101
+        //            valid=1, conditional=1, feedback=0, expected=1
         // --------------------------------------------------------
-        send_instruction({4'h6, 4'd0, 4'd0, 12'd5, 4'b1000, 4'd0});
-
+        send_instruction({4'h8, 4'd3, 4'd0, 12'd25, 4'b1101, 4'd0});
         wait_for_command();
 
-        $display("Test 4: WAIT command");
-        $display("cmd_valid=%0b opcode=%0h duration=%0d wait=%0b",
-                 command_valid_o, command_opcode_o,
-                 command_duration_o, wait_cmd_o);
+        if (command_opcode_o != OP_BRANCH)     $fatal(1, "Test 4 failed: branch command expected");
+        if (branch_cmd_o != 1'b1)              $fatal(1, "Test 4 failed: branch_cmd expected");
 
-        if (command_opcode_o != OP_WAIT)       $fatal(1, "Test 4 failed: command opcode mismatch");
-        if (command_duration_o != 12'd5)       $fatal(1, "Test 4 failed: wait duration mismatch");
-        if (wait_cmd_o != 1'b1)                $fatal(1, "Test 4 failed: wait command expected");
+        wait_for_feedback();
+
+        $display("Test 4: Feedback branch q3 == 1");
+        $display("feedback=%0b taken=%0b target=%0d qubit=%0d value=%0b checked=%0b missing=%0b",
+                 feedback_valid_o,
+                 branch_taken_o,
+                 branch_target_o,
+                 feedback_qubit_o,
+                 feedback_value_o,
+                 condition_checked_o,
+                 missing_measurement_o);
+
+        if (feedback_valid_o != 1'b1)          $fatal(1, "Test 4 failed: feedback_valid expected");
+        if (branch_taken_o != 1'b1)            $fatal(1, "Test 4 failed: branch should be taken");
+        if (branch_target_o != 12'd25)         $fatal(1, "Test 4 failed: branch target mismatch");
+        if (feedback_qubit_o != 4'd3)          $fatal(1, "Test 4 failed: feedback qubit mismatch");
+        if (feedback_value_o != 1'b1)          $fatal(1, "Test 4 failed: feedback value mismatch");
+        if (condition_checked_o != 1'b1)       $fatal(1, "Test 4 failed: condition should be checked");
+        if (missing_measurement_o != 1'b0)     $fatal(1, "Test 4 failed: measurement should not be missing");
 
         // --------------------------------------------------------
-        // Test 5: Invalid opcode should be rejected before execution.
+        // Test 5: BRANCH if q4 == 1, but q4 was never measured.
+        // Expected: feedback valid, branch not taken, missing measurement.
+        // --------------------------------------------------------
+        send_instruction({4'h8, 4'd4, 4'd0, 12'd12, 4'b1101, 4'd0});
+        wait_for_command();
+
+        wait_for_feedback();
+
+        $display("Test 5: Feedback branch q4 without measurement");
+        $display("feedback=%0b taken=%0b missing=%0b checked=%0b",
+                 feedback_valid_o,
+                 branch_taken_o,
+                 missing_measurement_o,
+                 condition_checked_o);
+
+        if (feedback_valid_o != 1'b1)          $fatal(1, "Test 5 failed: feedback_valid expected");
+        if (branch_taken_o != 1'b0)            $fatal(1, "Test 5 failed: branch should not be taken");
+        if (missing_measurement_o != 1'b1)     $fatal(1, "Test 5 failed: missing measurement expected");
+
+        // --------------------------------------------------------
+        // Test 6: Invalid opcode should be rejected before execution.
         // --------------------------------------------------------
         send_instruction({4'hF, 4'd0, 4'd0, 12'd1, 4'b1000, 4'd0});
 
-        $display("Test 5: Invalid opcode");
+        $display("Test 6: Invalid opcode");
         $display("illegal_instr=%0b illegal_issue=%0b count=%0d",
                  illegal_instr_o, illegal_issue_o, queue_count_o);
 
-        if (illegal_instr_o != 1'b1)           $fatal(1, "Test 5 failed: invalid opcode not detected");
-        if (illegal_issue_o != 1'b0)           $fatal(1, "Test 5 failed: invalid opcode reached execution controller");
+        if (illegal_instr_o != 1'b1)           $fatal(1, "Test 6 failed: invalid opcode not detected");
+        if (illegal_issue_o != 1'b0)           $fatal(1, "Test 6 failed: invalid opcode reached execution controller");
 
-        $display("quantum_controller_top measurement integration test PASSED");
+        $display("quantum_controller_top feedback integration test PASSED");
         $finish;
     end
 

@@ -48,6 +48,14 @@ module quantum_controller_top #(
     output logic [NUM_QUBITS-1:0]   measurement_results_o,
     output logic                    unexpected_measurement_result_o,
 
+    output logic                    feedback_valid_o,
+    output logic                    branch_taken_o,
+    output logic [DURATION_W-1:0]   branch_target_o,
+    output logic [QUBIT_ID_W-1:0]   feedback_qubit_o,
+    output logic                    feedback_value_o,
+    output logic                    condition_checked_o,
+    output logic                    missing_measurement_o,
+
     output logic                    scheduler_stall_o,
     output logic                    illegal_instr_o,
     output logic                    illegal_issue_o,
@@ -186,6 +194,30 @@ module quantum_controller_top #(
         .measurement_results_o      (measurement_results_o),
 
         .unexpected_result_o        (unexpected_measurement_result_o)
+    );
+
+    feedback_unit #(
+        .NUM_QUBITS(NUM_QUBITS)
+    ) u_feedback_unit (
+        .clk_i                 (clk_i),
+        .rst_ni                (rst_ni),
+
+        .command_valid_i       (command_valid_o),
+        .command_instr_i       (command_instr),
+        .branch_cmd_i          (branch_cmd_o),
+
+        .measurement_valid_i   (measurement_valid_o),
+        .measurement_results_i (measurement_results_o),
+
+        .feedback_valid_o      (feedback_valid_o),
+        .branch_taken_o        (branch_taken_o),
+        .branch_target_o       (branch_target_o),
+
+        .feedback_qubit_o      (feedback_qubit_o),
+        .feedback_value_o      (feedback_value_o),
+
+        .condition_checked_o   (condition_checked_o),
+        .missing_measurement_o (missing_measurement_o)
     );
 
     assign issue_valid_o         = sched_issue_valid;
