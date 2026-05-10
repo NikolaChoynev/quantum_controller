@@ -24,8 +24,8 @@ module instruction_decoder (
     assign duration_o      = instr_decoded.fields.duration;
     assign flags_o         = instr_decoded.fields.flags;
 
-    // In the selected instruction format, flags[3] is used as valid bit.
-    assign valid_o = instr_decoded.fields.flags[3];
+    // In the selected instruction format, the valid bit is part of flags.
+    assign valid_o = instr_decoded.fields.flags[FLAG_VALID_BIT];
 
     always_comb begin
         illegal_o = 1'b0;

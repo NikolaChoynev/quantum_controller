@@ -41,11 +41,16 @@ package qc_pkg;
     // ------------------------------------------------------------
     // Instruction flags
     // ------------------------------------------------------------
+    localparam int FLAG_VALID_BIT       = 3;
+    localparam int FLAG_CONDITIONAL_BIT = 2;
+    localparam int FLAG_FEEDBACK_BIT    = 1;
+    localparam int FLAG_EXPECTED_BIT    = 0;
+
     typedef struct packed {
         logic valid;
         logic conditional;
         logic feedback;
-        logic reserved;
+        logic expected;
     } qc_flags_t;
 
     // ------------------------------------------------------------

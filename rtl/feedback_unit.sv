@@ -26,11 +26,6 @@ module feedback_unit #(
     output logic                    missing_measurement_o
 );
 
-    localparam int FLAG_VALID       = 3;
-    localparam int FLAG_CONDITIONAL = 2;
-    localparam int FLAG_FEEDBACK    = 1;
-    localparam int FLAG_EXPECTED    = 0;
-
     logic [QUBIT_ID_W-1:0] selected_qubit;
     logic                  selected_valid;
     logic                  selected_result;
@@ -41,10 +36,10 @@ module feedback_unit #(
     assign selected_valid     = measurement_valid_i[selected_qubit];
     assign selected_result    = measurement_results_i[selected_qubit];
 
-    assign conditional_branch = command_instr_i.flags[FLAG_CONDITIONAL] |
-                                command_instr_i.flags[FLAG_FEEDBACK];
+    assign conditional_branch = command_instr_i.flags[FLAG_CONDITIONAL_BIT] |
+                                command_instr_i.flags[FLAG_FEEDBACK_BIT];
 
-    assign expected_value     = command_instr_i.flags[FLAG_EXPECTED];
+    assign expected_value     = command_instr_i.flags[FLAG_EXPECTED_BIT];
 
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
@@ -70,7 +65,7 @@ module feedback_unit #(
 
             if (command_valid_i && branch_cmd_i &&
                 command_instr_i.opcode == OP_BRANCH &&
-                command_instr_i.flags[FLAG_VALID]) begin
+                command_instr_i.flags[FLAG_VALID_BIT]) begin
 
                 feedback_valid_o <= 1'b1;
                 feedback_qubit_o <= selected_qubit;
