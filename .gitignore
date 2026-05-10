@@ -9,3 +9,8 @@ work/
 results/simulation_logs/*
 results/waveforms/*
 results/synthesis_reports/*
+# Generated synthesis artifacts
+build/
+results/synthesis_reports/*.log
+results/synthesis_reports/*.json
+results/synthesis_reports/*.lo

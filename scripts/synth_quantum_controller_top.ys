@@ -1,0 +1,16 @@
+read_verilog -sv rtl_synth/quantum_controller_top_synth.sv
+
+hierarchy -check -top quantum_controller_top_synth
+
+proc
+opt
+fsm
+opt
+memory
+opt
+techmap
+opt
+
+stat
+
+write_json results/synthesis_reports/quantum_controller_top_synth.json
