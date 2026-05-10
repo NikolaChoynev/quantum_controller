@@ -12,6 +12,8 @@ module operation_queue #(
     input  qc_instr_fields_t  instr_i,
     output logic              full_o,
 
+    input  logic              flush_i,
+
     input  logic              pop_i,
     output qc_instr_fields_t  instr_o,
     output logic              empty_o,
@@ -52,6 +54,14 @@ module operation_queue #(
 
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
+            wr_ptr_q <= '0;
+            rd_ptr_q <= '0;
+            count_q  <= '0;
+
+            for (int i = 0; i < DEPTH; i++) begin
+                mem_q[i] <= '0;
+            end
+        end else if (flush_i) begin
             wr_ptr_q <= '0;
             rd_ptr_q <= '0;
             count_q  <= '0;

@@ -11,6 +11,7 @@ module tb_operation_queue;
     qc_instr_fields_t instr_i;
     logic full_o;
 
+    logic flush_i;
     logic pop_i;
     qc_instr_fields_t instr_o;
     logic empty_o;
@@ -26,6 +27,8 @@ module tb_operation_queue;
         .push_i  (push_i),
         .instr_i (instr_i),
         .full_o  (full_o),
+
+        .flush_i (flush_i),
 
         .pop_i   (pop_i),
         .instr_o (instr_o),
@@ -83,11 +86,24 @@ module tb_operation_queue;
         end
     endtask
 
+    task automatic flush_queue();
+        begin
+            @(negedge clk_i);
+            flush_i = 1'b1;
+
+            @(posedge clk_i);
+            #1;
+
+            flush_i = 1'b0;
+        end
+    endtask
+
     initial begin
         $dumpfile("results/waveforms/operation_queue.vcd");
         $dumpvars(0, tb_operation_queue);
 
         push_i  = 1'b0;
+        flush_i = 1'b0;
         pop_i   = 1'b0;
         instr_i = '0;
         rst_ni  = 1'b0;
@@ -143,6 +159,14 @@ module tb_operation_queue;
         if (count_o != 4)   $fatal(1, "Queue count should be 4 when full");
 
         $display("Full queue test PASSED");
+
+        flush_queue();
+
+        if (empty_o != 1'b1) $fatal(1, "Queue should be empty after flush");
+        if (full_o  != 1'b0) $fatal(1, "Queue should not be full after flush");
+        if (count_o != 0)    $fatal(1, "Queue count should be 0 after flush");
+
+        $display("Flush queue test PASSED");
 
         $display("operation_queue test PASSED");
         $finish;

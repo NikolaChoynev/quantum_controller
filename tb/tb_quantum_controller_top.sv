@@ -160,28 +160,49 @@ module tb_quantum_controller_top;
     endtask
 
     task automatic wait_for_command();
+        int cycles;
         begin
+            cycles = 0;
             while (command_valid_o != 1'b1) begin
                 @(posedge clk_i);
                 #1;
+
+                cycles++;
+                if (cycles > 100) begin
+                    $fatal(1, "Timeout while waiting for command_valid_o");
+                end
             end
         end
     endtask
 
     task automatic wait_for_measure_request();
+        int cycles;
         begin
+            cycles = 0;
             while (measure_request_valid_o != 1'b1) begin
                 @(posedge clk_i);
                 #1;
+
+                cycles++;
+                if (cycles > 100) begin
+                    $fatal(1, "Timeout while waiting for measure_request_valid_o");
+                end
             end
         end
     endtask
 
     task automatic wait_for_feedback();
+        int cycles;
         begin
+            cycles = 0;
             while (feedback_valid_o != 1'b1) begin
                 @(posedge clk_i);
                 #1;
+
+                cycles++;
+                if (cycles > 100) begin
+                    $fatal(1, "Timeout while waiting for feedback_valid_o");
+                end
             end
         end
     endtask
@@ -294,6 +315,11 @@ module tb_quantum_controller_top;
         if (condition_checked_o != 1'b1)       $fatal(1, "Test 4 failed: condition should be checked");
         if (missing_measurement_o != 1'b0)     $fatal(1, "Test 4 failed: measurement should not be missing");
 
+        repeat (2) begin
+            @(posedge clk_i);
+            #1;
+        end
+
         // --------------------------------------------------------
         // Test 5: BRANCH if q4 == 1, but q4 was never measured.
         // Expected: feedback valid, branch not taken, missing measurement.
@@ -315,16 +341,91 @@ module tb_quantum_controller_top;
         if (missing_measurement_o != 1'b1)     $fatal(1, "Test 5 failed: missing measurement expected");
 
         // --------------------------------------------------------
-        // Test 6: Invalid opcode should be rejected before execution.
+        // Test 6: A second MEASURE must wait while one measurement
+        // is already pending.
+        // --------------------------------------------------------
+        send_instruction({4'h5, 4'd6, 4'd0, 12'd2, 4'b1000, 4'd0});
+        wait_for_measure_request();
+
+        if (measure_qubit_o != 4'd6) $fatal(1, "Test 6 failed: first measure qubit mismatch");
+
+        @(posedge clk_i);
+        #1;
+
+        send_instruction({4'h5, 4'd7, 4'd0, 12'd2, 4'b1000, 4'd0});
+
+        repeat (3) begin
+            @(posedge clk_i);
+            #1;
+            if (measure_request_valid_o && (measure_qubit_o == 4'd7)) begin
+                $fatal(1, "Test 6 failed: second measurement issued while first was pending");
+            end
+        end
+
+        if (measurement_busy_o != 1'b1) $fatal(1, "Test 6 failed: measurement controller should still be busy");
+
+        send_measurement_result(1'b0);
+        wait_for_measure_request();
+
+        if (measure_qubit_o != 4'd7) $fatal(1, "Test 6 failed: second measure did not issue after result");
+
+        send_measurement_result(1'b1);
+
+        $display("Test 6: Measurement backpressure");
+        $display("second request qubit=%0d busy=%0b", measure_qubit_o, measurement_busy_o);
+
+        // --------------------------------------------------------
+        // Test 7: Taken BRANCH flushes younger queued instructions.
+        // --------------------------------------------------------
+        send_instruction({4'h8, 4'd3, 4'd0, 12'd31, 4'b1101, 4'd0});
+        send_instruction({4'h1, 4'd8, 4'd0, 12'd1, 4'b1000, 4'd0});
+
+        while (feedback_valid_o != 1'b1) begin
+            @(posedge clk_i);
+            #1;
+
+            if (command_valid_o &&
+                (command_opcode_o == OP_H) &&
+                (command_target_qubit_o == 4'd8)) begin
+                $fatal(1, "Test 7 failed: younger H q8 issued before branch resolved");
+            end
+        end
+
+        if (branch_taken_o != 1'b1)    $fatal(1, "Test 7 failed: branch should be taken");
+        if (branch_target_o != 12'd31) $fatal(1, "Test 7 failed: branch target mismatch");
+
+        $display("Test 7: Taken branch flush");
+        $display("branch_taken=%0b target=%0d", branch_taken_o, branch_target_o);
+
+        @(posedge clk_i);
+        #1;
+
+        if (queue_count_o != 0) $fatal(1, "Test 7 failed: queue should be flushed after taken branch");
+
+        repeat (3) begin
+            @(posedge clk_i);
+            #1;
+
+            if (command_valid_o &&
+                (command_opcode_o == OP_H) &&
+                (command_target_qubit_o == 4'd8)) begin
+                $fatal(1, "Test 7 failed: flushed H q8 reached command interface");
+            end
+        end
+
+        $display("queue_count_after_flush=%0d", queue_count_o);
+
+        // --------------------------------------------------------
+        // Test 8: Invalid opcode should be rejected before execution.
         // --------------------------------------------------------
         send_instruction({4'hF, 4'd0, 4'd0, 12'd1, 4'b1000, 4'd0});
 
-        $display("Test 6: Invalid opcode");
+        $display("Test 8: Invalid opcode");
         $display("illegal_instr=%0b illegal_issue=%0b count=%0d",
                  illegal_instr_o, illegal_issue_o, queue_count_o);
 
-        if (illegal_instr_o != 1'b1)           $fatal(1, "Test 6 failed: invalid opcode not detected");
-        if (illegal_issue_o != 1'b0)           $fatal(1, "Test 6 failed: invalid opcode reached execution controller");
+        if (illegal_instr_o != 1'b1)           $fatal(1, "Test 8 failed: invalid opcode not detected");
+        if (illegal_issue_o != 1'b0)           $fatal(1, "Test 8 failed: invalid opcode reached execution controller");
 
         $display("quantum_controller_top feedback integration test PASSED");
         $finish;

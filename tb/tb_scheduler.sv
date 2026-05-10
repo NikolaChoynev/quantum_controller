@@ -11,6 +11,7 @@ module tb_scheduler;
 
     logic instr_valid_i;
     qc_instr_fields_t instr_i;
+    logic issue_ready_i;
 
     logic queue_pop_o;
 
@@ -28,6 +29,7 @@ module tb_scheduler;
 
         .instr_valid_i (instr_valid_i),
         .instr_i       (instr_i),
+        .issue_ready_i (issue_ready_i),
 
         .queue_pop_o   (queue_pop_o),
 
@@ -92,6 +94,7 @@ module tb_scheduler;
 
         instr_valid_i = 1'b0;
         instr_i       = '0;
+        issue_ready_i = 1'b1;
         rst_ni        = 1'b0;
 
         repeat (2) @(negedge clk_i);
@@ -195,6 +198,77 @@ module tb_scheduler;
         if (qubit_busy_o[1] != 1'b1)           $fatal(1, "Test 4 failed: target q1 should be busy");
 
         $display("CNOT issue after dependency clears test PASSED");
+
+        clear_instr();
+
+        repeat (4) begin
+            @(posedge clk_i);
+            #1;
+        end
+
+        // --------------------------------------------------------
+        // Test 5: Downstream backpressure.
+        // Scheduler must hold the queue head while issue_ready_i=0.
+        // --------------------------------------------------------
+        issue_ready_i = 1'b0;
+        present_instr(make_instr(OP_H, 4'd2, 4'd0, 12'd1));
+
+        if (queue_pop_o != 1'b0) $fatal(1, "Test 5 failed: scheduler popped while downstream not ready");
+        if (stall_o != 1'b1)     $fatal(1, "Test 5 failed: scheduler should stall on backpressure");
+
+        issue_cycle();
+
+        if (issue_valid_o != 1'b0) $fatal(1, "Test 5 failed: scheduler issued while downstream not ready");
+
+        @(negedge clk_i);
+        issue_ready_i = 1'b1;
+        #1;
+
+        if (queue_pop_o != 1'b1) $fatal(1, "Test 5 failed: scheduler did not pop after ready");
+
+        issue_cycle();
+
+        if (issue_valid_o != 1'b1)       $fatal(1, "Test 5 failed: H q2 not issued after ready");
+        if (issue_instr_o.opcode != OP_H) $fatal(1, "Test 5 failed: issued opcode mismatch");
+
+        $display("Backpressure stall test PASSED");
+
+        clear_instr();
+
+        repeat (2) begin
+            @(posedge clk_i);
+            #1;
+        end
+
+        // --------------------------------------------------------
+        // Test 6: WAIT creates a global scheduler hold.
+        // --------------------------------------------------------
+        present_instr(make_instr(OP_WAIT, 4'd0, 4'd0, 12'd3));
+
+        if (queue_pop_o != 1'b1) $fatal(1, "Test 6 failed: WAIT should pop");
+
+        issue_cycle();
+
+        if (issue_valid_o != 1'b1)          $fatal(1, "Test 6 failed: WAIT not issued");
+        if (issue_instr_o.opcode != OP_WAIT) $fatal(1, "Test 6 failed: issued opcode mismatch");
+
+        present_instr(make_instr(OP_H, 4'd3, 4'd0, 12'd1));
+
+        if (queue_pop_o != 1'b0) $fatal(1, "Test 6 failed: H should not pop while WAIT active");
+        if (stall_o != 1'b1)     $fatal(1, "Test 6 failed: WAIT should stall following instruction");
+
+        repeat (3) begin
+            issue_cycle();
+        end
+
+        if (queue_pop_o != 1'b1) $fatal(1, "Test 6 failed: H should pop after WAIT expires");
+
+        issue_cycle();
+
+        if (issue_valid_o != 1'b1)       $fatal(1, "Test 6 failed: H q3 not issued after WAIT");
+        if (issue_instr_o.opcode != OP_H) $fatal(1, "Test 6 failed: issued opcode mismatch after WAIT");
+
+        $display("WAIT scheduler hold test PASSED");
 
         $display("scheduler test PASSED");
         $finish;

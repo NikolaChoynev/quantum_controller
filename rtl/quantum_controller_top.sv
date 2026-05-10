@@ -81,10 +81,15 @@ module quantum_controller_top #(
     logic                   queue_full;
     logic                   queue_empty;
     logic                   queue_pop;
+    logic                   queue_flush;
 
     logic                   sched_issue_valid;
+    logic                   scheduler_issue_ready;
     logic                   execution_ready;
     logic                   measurement_command_ready;
+    logic                   measurement_issue_blocked;
+    logic                   branch_issue_blocked;
+    logic                   branch_inflight_q;
     logic                   illegal_q;
 
     instruction_decoder u_instruction_decoder (
@@ -105,12 +110,32 @@ module quantum_controller_top #(
     assign decoded_instr.flags         = dec_flags;
     assign decoded_instr.reserved      = '0;
 
-    assign instr_ready_o = !queue_full;
+    assign queue_flush = feedback_valid_o && branch_taken_o;
+
+    assign instr_ready_o = !queue_full && !queue_flush;
 
     assign queue_push = instr_valid_i &&
                         instr_ready_o &&
                         dec_valid &&
-                        !dec_illegal;
+                        !dec_illegal &&
+                        !queue_flush;
+
+    assign measurement_issue_blocked =
+        measurement_busy_o ||
+        (sched_issue_valid && (sched_issue_instr.opcode == OP_MEASURE)) ||
+        (command_valid_o && (command_instr.opcode == OP_MEASURE));
+
+    assign branch_issue_blocked =
+        branch_inflight_q ||
+        (sched_issue_valid && (sched_issue_instr.opcode == OP_BRANCH)) ||
+        (command_valid_o && (command_instr.opcode == OP_BRANCH));
+
+    assign scheduler_issue_ready =
+        !queue_flush &&
+        !branch_issue_blocked &&
+        !(measurement_issue_blocked &&
+          !queue_empty &&
+          (queue_instr.opcode == OP_MEASURE));
 
     operation_queue #(
         .DEPTH(QUEUE_DEPTH)
@@ -121,6 +146,8 @@ module quantum_controller_top #(
         .push_i  (queue_push),
         .instr_i (decoded_instr),
         .full_o  (queue_full),
+
+        .flush_i (queue_flush),
 
         .pop_i   (queue_pop),
         .instr_o (queue_instr),
@@ -137,6 +164,7 @@ module quantum_controller_top #(
 
         .instr_valid_i (!queue_empty),
         .instr_i       (queue_instr),
+        .issue_ready_i (scheduler_issue_ready),
 
         .queue_pop_o   (queue_pop),
 
@@ -237,12 +265,21 @@ module quantum_controller_top #(
 
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
-            illegal_q <= 1'b0;
+            illegal_q          <= 1'b0;
+            branch_inflight_q  <= 1'b0;
         end else begin
             illegal_q <= 1'b0;
 
             if (instr_valid_i && instr_ready_o && dec_illegal) begin
                 illegal_q <= 1'b1;
+            end
+
+            if (feedback_valid_o) begin
+                branch_inflight_q <= 1'b0;
+            end
+
+            if (sched_issue_valid && (sched_issue_instr.opcode == OP_BRANCH)) begin
+                branch_inflight_q <= 1'b1;
             end
         end
     end

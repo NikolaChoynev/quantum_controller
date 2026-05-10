@@ -111,13 +111,15 @@ module quantum_controller_top_synth #(
     wire queue_empty;
     wire queue_push;
     wire queue_pop;
+    wire queue_flush;
 
     assign queue_full    = (count_q == QUEUE_DEPTH[2:0]);
     assign queue_empty   = (count_q == 3'd0);
-    assign instr_ready_o = !queue_full;
+    assign queue_flush   = feedback_valid_o && branch_taken_o;
+    assign instr_ready_o = !queue_full && !queue_flush;
     assign queue_count_o = count_q;
 
-    assign queue_push = instr_valid_i && instr_ready_o && dec_valid && !dec_illegal;
+    assign queue_push = instr_valid_i && instr_ready_o && dec_valid && !dec_illegal && !queue_flush;
 
     wire [31:0] queue_head;
     assign queue_head = queue_mem[rd_ptr_q];
@@ -135,6 +137,8 @@ module quantum_controller_top_synth #(
     assign q_flags    = queue_head[7:4];
 
     reg [11:0] busy_cnt_q [0:NUM_QUBITS-1];
+    reg [11:0] wait_cnt_q;
+    reg        branch_inflight_q;
 
     genvar gi;
     generate
@@ -175,14 +179,39 @@ module quantum_controller_top_synth #(
     wire target_busy;
     wire control_busy;
     wire dependency_hazard;
+    wire measurement_issue_blocked;
+    wire branch_issue_blocked;
+    wire scheduler_issue_ready;
+    wire wait_active;
     wire can_issue;
 
     assign target_busy       = uses_target  ? qubit_busy_o[q_target]  : 1'b0;
     assign control_busy      = uses_control ? qubit_busy_o[q_control] : 1'b0;
     assign dependency_hazard = !queue_empty && (target_busy || control_busy);
-    assign can_issue         = !queue_empty && !dependency_hazard;
+    assign measurement_issue_blocked =
+        measurement_pending_q ||
+        (issue_valid_o && (issue_opcode_o == OP_MEASURE)) ||
+        (command_valid_o && (command_opcode_o == OP_MEASURE));
+    assign branch_issue_blocked =
+        branch_inflight_q ||
+        (issue_valid_o && (issue_opcode_o == OP_BRANCH)) ||
+        (command_valid_o && (command_opcode_o == OP_BRANCH));
+    assign scheduler_issue_ready =
+        !queue_flush &&
+        !branch_issue_blocked &&
+        !(measurement_issue_blocked &&
+          !queue_empty &&
+          (q_opcode == OP_MEASURE));
+    assign wait_active       = (wait_cnt_q != 12'd0);
+    assign can_issue         = !queue_empty &&
+                               !dependency_hazard &&
+                               scheduler_issue_ready &&
+                               !wait_active;
     assign queue_pop         = can_issue;
-    assign scheduler_stall_o = dependency_hazard;
+    assign scheduler_stall_o = !queue_empty &&
+                               (dependency_hazard ||
+                                wait_active ||
+                                !scheduler_issue_ready);
 
     wire [11:0] operation_duration;
     assign operation_duration = (q_duration == 12'd0) ? 12'd1 : q_duration;
@@ -223,6 +252,8 @@ module quantum_controller_top_synth #(
 
             measurement_pending_q       <= 1'b0;
             measurement_pending_qubit_q <= 4'd0;
+            wait_cnt_q                  <= 12'd0;
+            branch_inflight_q           <= 1'b0;
 
             measure_request_valid_o <= 1'b0;
             measure_qubit_o         <= 4'd0;
@@ -283,103 +314,121 @@ module quantum_controller_top_synth #(
                     busy_cnt_q[i] <= busy_cnt_q[i] - 12'd1;
             end
 
+            if (wait_cnt_q != 12'd0)
+                wait_cnt_q <= wait_cnt_q - 12'd1;
+
             if (instr_valid_i && instr_ready_o && dec_illegal)
                 illegal_instr_o <= 1'b1;
 
-            if (queue_push) begin
-                queue_mem[wr_ptr_q] <= instr_i;
-                wr_ptr_q <= wr_ptr_q + 2'd1;
-            end
+            if (feedback_valid_o)
+                branch_inflight_q <= 1'b0;
 
-            if (can_issue) begin
-                issue_valid_o         <= 1'b1;
-                issue_opcode_o        <= q_opcode;
-                issue_target_qubit_o  <= q_target;
-                issue_control_qubit_o <= q_control;
-                issue_duration_o      <= q_duration;
-                issue_flags_o         <= q_flags;
+            if (queue_flush) begin
+                wr_ptr_q <= 2'd0;
+                rd_ptr_q <= 2'd0;
+                count_q  <= 3'd0;
 
-                command_opcode_o        <= q_opcode;
-                command_target_qubit_o  <= q_target;
-                command_control_qubit_o <= q_control;
-                command_duration_o      <= q_duration;
-                command_flags_o         <= q_flags;
+                for (i = 0; i < QUEUE_DEPTH; i = i + 1) begin
+                    queue_mem[i] <= 32'd0;
+                end
+            end else begin
+                if (queue_push) begin
+                    queue_mem[wr_ptr_q] <= instr_i;
+                    wr_ptr_q <= wr_ptr_q + 2'd1;
+                end
 
-                case (q_opcode)
-                    OP_NOP: begin
-                        nop_cmd_o <= 1'b1;
-                    end
+                if (can_issue) begin
+                    issue_valid_o         <= 1'b1;
+                    issue_opcode_o        <= q_opcode;
+                    issue_target_qubit_o  <= q_target;
+                    issue_control_qubit_o <= q_control;
+                    issue_duration_o      <= q_duration;
+                    issue_flags_o         <= q_flags;
 
-                    OP_H,
-                    OP_X,
-                    OP_Z,
-                    OP_CNOT: begin
-                        command_valid_o <= 1'b1;
-                        gate_cmd_o      <= 1'b1;
-                    end
+                    command_opcode_o        <= q_opcode;
+                    command_target_qubit_o  <= q_target;
+                    command_control_qubit_o <= q_control;
+                    command_duration_o      <= q_duration;
+                    command_flags_o         <= q_flags;
 
-                    OP_MEASURE: begin
-                        command_valid_o <= 1'b1;
-                        measure_cmd_o   <= 1'b1;
-
-                        if (!measurement_pending_q) begin
-                            measurement_pending_q       <= 1'b1;
-                            measurement_pending_qubit_q <= q_target;
-                            measure_request_valid_o     <= 1'b1;
-                            measure_qubit_o             <= q_target;
+                    case (q_opcode)
+                        OP_NOP: begin
+                            nop_cmd_o <= 1'b1;
                         end
-                    end
 
-                    OP_WAIT: begin
-                        command_valid_o <= 1'b1;
-                        wait_cmd_o      <= 1'b1;
-                    end
+                        OP_H,
+                        OP_X,
+                        OP_Z,
+                        OP_CNOT: begin
+                            command_valid_o <= 1'b1;
+                            gate_cmd_o      <= 1'b1;
+                        end
 
-                    OP_RESET: begin
-                        command_valid_o <= 1'b1;
-                        reset_cmd_o     <= 1'b1;
-                    end
+                        OP_MEASURE: begin
+                            command_valid_o <= 1'b1;
+                            measure_cmd_o   <= 1'b1;
 
-                    OP_BRANCH: begin
-                        command_valid_o <= 1'b1;
-                        branch_cmd_o    <= 1'b1;
-
-                        feedback_valid_o <= 1'b1;
-                        feedback_qubit_o <= q_target;
-                        branch_target_o  <= q_duration;
-
-                        if (q_flags[2] || q_flags[1]) begin
-                            if (measurement_valid_o[q_target]) begin
-                                condition_checked_o <= 1'b1;
-                                feedback_value_o    <= measurement_results_o[q_target];
-                                branch_taken_o      <= (measurement_results_o[q_target] == q_flags[0]);
-                            end else begin
-                                missing_measurement_o <= 1'b1;
-                                branch_taken_o        <= 1'b0;
+                            if (!measurement_pending_q) begin
+                                measurement_pending_q       <= 1'b1;
+                                measurement_pending_qubit_q <= q_target;
+                                measure_request_valid_o     <= 1'b1;
+                                measure_qubit_o             <= q_target;
                             end
-                        end else begin
-                            branch_taken_o <= 1'b1;
                         end
-                    end
 
-                    default: begin
-                        illegal_issue_o <= 1'b1;
-                    end
-                endcase
+                        OP_WAIT: begin
+                            command_valid_o <= 1'b1;
+                            wait_cmd_o      <= 1'b1;
+                            wait_cnt_q      <= operation_duration;
+                        end
 
-                if (uses_target)
-                    busy_cnt_q[q_target] <= operation_duration;
+                        OP_RESET: begin
+                            command_valid_o <= 1'b1;
+                            reset_cmd_o     <= 1'b1;
+                        end
 
-                if (uses_control)
-                    busy_cnt_q[q_control] <= operation_duration;
+                        OP_BRANCH: begin
+                            command_valid_o     <= 1'b1;
+                            branch_cmd_o        <= 1'b1;
+                            branch_inflight_q   <= 1'b1;
 
-                rd_ptr_q <= rd_ptr_q + 2'd1;
+                            feedback_valid_o <= 1'b1;
+                            feedback_qubit_o <= q_target;
+                            branch_target_o  <= q_duration;
+
+                            if (q_flags[2] || q_flags[1]) begin
+                                if (measurement_valid_o[q_target]) begin
+                                    condition_checked_o <= 1'b1;
+                                    feedback_value_o    <= measurement_results_o[q_target];
+                                    branch_taken_o      <= (measurement_results_o[q_target] == q_flags[0]);
+                                end else begin
+                                    missing_measurement_o <= 1'b1;
+                                    branch_taken_o        <= 1'b0;
+                                end
+                            end else begin
+                                branch_taken_o <= 1'b1;
+                            end
+                        end
+
+                        default: begin
+                            illegal_issue_o <= 1'b1;
+                        end
+                    endcase
+
+                    if (uses_target)
+                        busy_cnt_q[q_target] <= operation_duration;
+
+                    if (uses_control)
+                        busy_cnt_q[q_control] <= operation_duration;
+
+                    rd_ptr_q <= rd_ptr_q + 2'd1;
+                end
+
+                if (queue_push && !queue_pop)
+                    count_q <= count_q + 3'd1;
+                else if (!queue_push && queue_pop)
+                    count_q <= count_q - 3'd1;
             end
-
-            if (queue_push && !queue_pop)
-                count_q <= count_q + 3'd1;
-            else if (!queue_push && queue_pop)
-                count_q <= count_q - 3'd1;
 
             if (measurement_result_valid_i) begin
                 if (measurement_pending_q) begin
