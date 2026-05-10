@@ -352,21 +352,34 @@ docs/chapter_2_rtl_architecture.md
 
 В този работен Markdown файл разделите `2.1`–`2.10` са разписани като цялостна първа финална версия на Глава 2, съобразена с реалния RTL код, последния control-flow fix и implementation-first правилото. Текстът описва архитектурната концепция, RTL файловата организация, блоковата архитектура, scheduler формализацията, RTL имплементацията на модулите, вътрешните контролни състояния, end-to-end pipeline сценариите, Verilator проверката, Yosys-friendly synthesis flow-а и ограниченията на текущата реализация.
 
+В раздел `2.5` вече са добавени реални кратки SystemVerilog кодови фрагменти, които трябва да се запазят или редакторски да се оформят при финалното прехвърляне към `.docx`:
+
+- flag и instruction struct дефиниции от `rtl/qc_pkg.sv`;
+- valid/illegal decode логика от `rtl/instruction_decoder.sv`;
+- `flush_i` поведение от `rtl/operation_queue.sv`;
+- resource detection и dependency hazard логика от `rtl/dependency_tracker.sv`;
+- `can_issue`, `stall_o` и `OP_WAIT` логика от `rtl/scheduler.sv`;
+- measurement pending/result логика от `rtl/measurement_controller.sv`;
+- conditional/unconditional branch логика от `rtl/feedback_unit.sv`;
+- `queue_flush`, measurement/branch backpressure и `branch_inflight_q` логика от `rtl/quantum_controller_top.sv`.
+
 Препоръчителна последователност:
 
 1. Редакторски преглед на `docs/chapter_2_rtl_architecture.md` за стил, повторения, терминология и плавни преходи.
 2. Проверка на всички твърдения спрямо реалния RTL, testbench logs и Yosys report.
-3. Добавяне/финализиране на таблици:
+3. Проверка, че освен фигури и таблици текстът съдържа явни препратки към реалните артефакти: `rtl/*.sv`, `tb/*.sv`, `results/simulation_logs/*.log`, `results/waveforms/*.vcd`, `rtl_synth/` и `results/synthesis_reports/`.
+4. Проверка, че реалните SystemVerilog кодови фрагменти в раздел `2.5` са точни спрямо текущия RTL и са достатъчно кратки за дисертационен текст.
+5. Добавяне/финализиране на таблици:
    - requirements → RTL modules → tests;
    - RTL files → dissertation sections;
    - module → testbench → simulation log.
-4. Добавяне/финализиране на диаграми:
+6. Добавяне/финализиране на диаграми:
    - top-level block diagram;
    - instruction pipeline diagram;
    - scheduler/dependency flow;
    - measurement-feedback flow.
-5. Прехвърляне на финализирания текст от Markdown към `docs/Дисертация.docx`.
-6. След завършване на Глава 2 се преминава към UVM разработка и Глава 3.
+7. Прехвърляне на финализирания текст от Markdown към `docs/Дисертация.docx`.
+8. След завършване на Глава 2 се преминава към UVM разработка и Глава 3.
 
 ---
 

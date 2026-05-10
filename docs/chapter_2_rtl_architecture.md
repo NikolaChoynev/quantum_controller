@@ -4,6 +4,10 @@
 
 След формулирането на научния проблем и анализа на съществуващите подходи за управление на квантови системи настоящата глава представя реализираната RTL архитектура на класически контролер за квантови операции. За разлика от теоретичния обзор в Глава 1, тук фокусът е върху конкретната цифрова реализация, разработените SystemVerilog модули, вътрешния поток на данни, управляващите състояния и доказателствата за функционална коректност, получени чрез симулация.
 
+За да се запази проследимостта между дисертационния текст и реалната инженерна реализация, описанието в тази глава използва не само фигури и таблици, а и преки препратки към конкретните RTL файлове, testbench-и, simulation logs и synthesis reports. Това означава, че всяко съществено архитектурно твърдение трябва да може да бъде свързано с реален артефакт от проекта, например `rtl/scheduler.sv`, `tb/tb_scheduler.sv`, `results/simulation_logs/tb_scheduler.log` или `results/synthesis_reports/quantum_controller_top_synth_yosys.log`.
+
+Освен имената на файловете, финалният текст трябва да включва и кратки реални кодови фрагменти от RTL имплементацията, когато те доказват важна архитектурна логика. Такива фрагменти не трябва да заменят обяснението, а да го подкрепят. Подходящи примери са условието за issue в scheduler-а, flush логиката на operation queue, flag дефинициите в package файла, measurement pending състоянието и branch decision логиката във feedback unit-а. Фигурите и таблиците служат за обобщение и визуализация, но не заменят нито препратките към кода, нито кратките реални RTL откъси.
+
 Основната идея на архитектурата е да се реализира instruction-driven контролен слой, при който квантовите операции се представят чрез фиксирани цифрови инструкции. Всяка инструкция съдържа код на операцията, идентификатори на участващите кубити, поле за продължителност и управляващи флагове. След постъпване във входния интерфейс инструкцията се декодира, буферира, проверява за зависимости, планира се за изпълнение и се преобразува в цифрови command сигнали към абстрактен квантов изпълнителен слой.
 
 Реализираният контролер е класическа цифрова RTL система. Той не моделира физическото квантово устройство, не генерира аналогови импулси, не симулира шум, декохерентност или конкретна технология за физически кубити. Тези нива остават извън обхвата на разработката. Обект на реализацията е логическият контролен механизъм, който управлява реда на квантовите операции, зависимостите между тях, заявките за измерване и базовата feedback/branch логика.
@@ -575,6 +579,24 @@ Opcode стойностите са представени чрез enum типа
 
 За структурирано представяне на инструкцията се използва `qc_instr_fields_t`. Тази packed структура съдържа полетата `opcode`, `target_qubit`, `control_qubit`, `duration`, `flags` и `reserved`. Допълнително `qc_instr_t` е дефиниран като packed union между raw 32-битова стойност и structured fields представяне. Така decoder-ът може да приема инструкцията като 32-битова дума, но да извежда отделните полета чрез типизиран достъп.
 
+Кодов фрагмент 2.1 показва реалните flag позиции и структурираното представяне на инструкцията в `rtl/qc_pkg.sv`.
+
+```systemverilog
+localparam int FLAG_VALID_BIT       = 3;
+localparam int FLAG_CONDITIONAL_BIT = 2;
+localparam int FLAG_FEEDBACK_BIT    = 1;
+localparam int FLAG_EXPECTED_BIT    = 0;
+
+typedef struct packed {
+    qc_opcode_e             opcode;
+    logic [QUBIT_ID_W-1:0]  target_qubit;
+    logic [QUBIT_ID_W-1:0]  control_qubit;
+    logic [DURATION_W-1:0]  duration;
+    logic [FLAGS_W-1:0]     flags;
+    logic [RESERVED_W-1:0]  reserved;
+} qc_instr_fields_t;
+```
+
 ## 2.5.2 Instruction Decoder (`instruction_decoder.sv`)
 
 Модулът `rtl/instruction_decoder.sv` реализира първия етап от pipeline-а. Неговата задача е да приеме входната 32-битова инструкция `instr_i` и да извлече основните архитектурни полета. Това се извършва чрез union представянето `qc_instr_t`, дефинирано в package файла. Raw входната стойност се записва в `instr_decoded.raw`, а отделните полета се достъпват чрез `instr_decoded.fields`.
@@ -595,6 +617,27 @@ Decoder-ът генерира следните изходи:
 
 Illegal opcode логиката се реализира чрез `unique case` върху декодирания opcode. Поддържаните операции се маркират като легални, а всички останали стойности активират `illegal_o`. В top-level интеграцията нелегалната инструкция не се записва в queue-а, а се отразява чрез диагностичния сигнал `illegal_instr_o`. Това поведение е проверено чрез `tb/tb_instruction_decoder.sv` и чрез top-level invalid opcode сценарий в `tb/tb_quantum_controller_top.sv`.
 
+Кодов фрагмент 2.2 показва как `instruction_decoder.sv` извлича valid bit-а от flags полето и маркира неподдържаните opcode стойности.
+
+```systemverilog
+assign valid_o = instr_decoded.fields.flags[FLAG_VALID_BIT];
+
+always_comb begin
+    illegal_o = 1'b0;
+
+    unique case (instr_decoded.fields.opcode)
+        OP_NOP, OP_H, OP_X, OP_Z, OP_CNOT,
+        OP_MEASURE, OP_WAIT, OP_RESET, OP_BRANCH: begin
+            illegal_o = 1'b0;
+        end
+
+        default: begin
+            illegal_o = 1'b1;
+        end
+    endcase
+end
+```
+
 ## 2.5.3 Operation Queue (`operation_queue.sv`)
 
 Модулът `rtl/operation_queue.sv` реализира FIFO буфер за декодирани инструкции. Той приема вече структурирана инструкция от тип `qc_instr_fields_t` и я съхранява до момента, в който scheduler-ът може да я разгледа за издаване. Queue-ът е параметризиран чрез `DEPTH`, което позволява промяна на броя буферирани операции без промяна в останалата логика.
@@ -607,6 +650,41 @@ Push операция се изпълнява, когато `push_i` е акти
 
 Operation queue поведението е проверено чрез `tb/tb_operation_queue.sv`. Testbench-ът покрива reset, push, pop, full queue сценарий и flush queue сценарий. Това покритие е важно, защото queue-ът е границата между входния instruction поток и scheduler-а.
 
+Кодов фрагмент 2.3 показва реалната flush логика в `rtl/operation_queue.sv`.
+
+```systemverilog
+always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+        wr_ptr_q <= '0;
+        rd_ptr_q <= '0;
+        count_q  <= '0;
+    end else if (flush_i) begin
+        wr_ptr_q <= '0;
+        rd_ptr_q <= '0;
+        count_q  <= '0;
+
+        for (int i = 0; i < DEPTH; i++) begin
+            mem_q[i] <= '0;
+        end
+    end else begin
+        if (push_en) begin
+            mem_q[wr_ptr_q] <= instr_i;
+            wr_ptr_q        <= ptr_next(wr_ptr_q);
+        end
+
+        if (pop_en) begin
+            rd_ptr_q <= ptr_next(rd_ptr_q);
+        end
+
+        unique case ({push_en, pop_en})
+            2'b10: count_q <= count_q + CNT_W'(1);
+            2'b01: count_q <= count_q - CNT_W'(1);
+            default: count_q <= count_q;
+        endcase
+    end
+end
+```
+
 ## 2.5.4 Dependency Tracker (`dependency_tracker.sv`)
 
 Модулът `rtl/dependency_tracker.sv` определя кои кубити се използват от дадена операция и дали съществува dependency hazard спрямо текущия busy state. Той не пази вътрешно състояние, а работи като combinational блок. Входовете му са валидността на инструкцията, самата декодирана инструкция и векторът `qubit_busy_i`, който се подава от scheduler-а.
@@ -616,6 +694,33 @@ Operation queue поведението е проверено чрез `tb/tb_ope
 След определяне на използваните ресурси модулът генерира `qubit_mask_o`, `target_busy_o` и `control_busy_o`. Ако операцията е валидна и някой от използваните кубити е маркиран като busy, се активира `dependency_hazard_o`. Ако операцията е валидна и няма hazard, се активира `independent_o`.
 
 Този модул отделя dependency анализа от scheduler state логиката. Така scheduler-ът не трябва сам да съдържа opcode-specific resource detection логика, а може да използва готовите сигнали от tracker-а. Модулът е проверен чрез `tb/tb_dependency_tracker.sv`, който покрива свободен target qubit, busy target hazard, busy control hazard при `CNOT`, независими операции върху различни кубити и `NOP` сценарий.
+
+Кодов фрагмент 2.4 показва реалното определяне на използваните qubit ресурси и dependency hazard в `rtl/dependency_tracker.sv`.
+
+```systemverilog
+unique case (instr_i.opcode)
+    OP_H, OP_X, OP_Z, OP_MEASURE, OP_RESET: begin
+        uses_target_o  = 1'b1;
+        uses_control_o = 1'b0;
+    end
+
+    OP_CNOT: begin
+        uses_target_o  = 1'b1;
+        uses_control_o = 1'b1;
+    end
+
+    default: begin
+        uses_target_o  = 1'b0;
+        uses_control_o = 1'b0;
+    end
+endcase
+
+assign dependency_hazard_o = instr_valid_i &&
+                             ((uses_target_o  && target_busy_o) ||
+                              (uses_control_o && control_busy_o));
+
+assign independent_o = instr_valid_i && !dependency_hazard_o;
+```
 
 ## 2.5.5 Scheduler (`scheduler.sv`)
 
@@ -636,6 +741,29 @@ can_issue = tracker_independent && issue_ready_i && !wait_active
 Операцията `OP_WAIT` се обработва чрез отделен `wait_cnt_q`. При issue на `OP_WAIT` counter-ът се зарежда с ефективната продължителност на операцията. Докато `wait_cnt_q` е различен от нула, `wait_active` блокира издаването на следващи операции. Така WAIT се реализира като глобално времево задържане на scheduler-а, а не като qubit-specific dependency.
 
 Scheduler поведението е проверено чрез `tb/tb_scheduler.sv`. Тестовете покриват издаване на независими операции, dependency hazard при `CNOT`, освобождаване след изтичане на busy counter, backpressure stall и WAIT scheduler hold. Тази проверка е ключова, защото scheduler-ът е централният модул, който определя кога instruction pipeline-ът напредва и кога се задържа.
+
+Кодов фрагмент 2.5 показва реалните `can_issue`, `stall_o` и `OP_WAIT` части от `rtl/scheduler.sv`.
+
+```systemverilog
+assign operation_duration = (instr_i.duration == '0) ? ONE_CYCLE : instr_i.duration;
+assign wait_active        = (wait_cnt_q != '0);
+
+assign can_issue   = tracker_independent && issue_ready_i && !wait_active;
+assign queue_pop_o = can_issue;
+assign stall_o     = instr_valid_i &&
+                      (wait_active ||
+                       tracker_dependency_hazard ||
+                       (tracker_independent && !issue_ready_i));
+
+if (can_issue) begin
+    issue_valid_o <= 1'b1;
+    issue_instr_o <= instr_i;
+
+    if (instr_i.opcode == OP_WAIT) begin
+        wait_cnt_q <= operation_duration;
+    end
+end
+```
 
 ## 2.5.6 Execution Controller и цифров command интерфейс (`execution_controller.sv`)
 
@@ -663,6 +791,32 @@ Top-level модулът използва `measurement_busy_o`, за да бло
 
 Поведенческата проверка се извършва чрез `tb/tb_measurement_controller.sv`, който покрива measurement request, съхранение на резултат, втори measurement резултат, игнориране на non-measure command и unexpected result сценарий.
 
+Кодов фрагмент 2.6 показва pending measurement логиката и записването на резултата в `rtl/measurement_controller.sv`.
+
+```systemverilog
+assign command_ready_o    = !pending_q;
+assign measurement_busy_o = pending_q;
+
+if (command_valid_i && command_ready_o) begin
+    if (command_instr_i.opcode == OP_MEASURE) begin
+        pending_q               <= 1'b1;
+        pending_qubit_q         <= command_instr_i.target_qubit;
+        measure_request_valid_o <= 1'b1;
+        measure_qubit_o         <= command_instr_i.target_qubit;
+    end
+end
+
+if (measurement_result_valid_i) begin
+    if (pending_q) begin
+        pending_q <= 1'b0;
+        measurement_valid_o[pending_qubit_q]   <= 1'b1;
+        measurement_results_o[pending_qubit_q] <= measurement_result_i;
+    end else begin
+        unexpected_result_o <= 1'b1;
+    end
+end
+```
+
 ## 2.5.8 Feedback Unit (`feedback_unit.sv`)
 
 Модулът `rtl/feedback_unit.sv` реализира базовата feedback/branch логика на контролера. Той приема command интерфейса, branch command индикацията и текущите measurement result регистри. Feedback unit-ът се активира само при валидна `OP_BRANCH` команда, активен `branch_cmd_i` и валиден instruction flag.
@@ -676,6 +830,35 @@ Conditional branch поведение се определя чрез `FLAG_CONDI
 Ако branch операцията не е conditional или feedback-related, модулът я третира като unconditional branch. В този случай `branch_taken_o` се активира без проверка на measurement резултат. И при conditional, и при unconditional branch `feedback_valid_o` показва, че feedback unit-ът е обработил branch командата и branch decision-ът е валиден за текущия цикъл.
 
 Feedback unit поведението е проверено чрез `tb/tb_feedback_unit.sv`. Testbench-ът покрива conditional branch taken, conditional branch not taken, missing measurement, unconditional branch и invalid command_valid сценарий.
+
+Кодов фрагмент 2.7 показва реалната conditional/unconditional branch логика в `rtl/feedback_unit.sv`.
+
+```systemverilog
+assign conditional_branch = command_instr_i.flags[FLAG_CONDITIONAL_BIT] |
+                            command_instr_i.flags[FLAG_FEEDBACK_BIT];
+assign expected_value     = command_instr_i.flags[FLAG_EXPECTED_BIT];
+
+if (command_valid_i && branch_cmd_i &&
+    command_instr_i.opcode == OP_BRANCH &&
+    command_instr_i.flags[FLAG_VALID_BIT]) begin
+
+    feedback_valid_o <= 1'b1;
+    branch_target_o  <= command_instr_i.duration;
+
+    if (conditional_branch) begin
+        if (selected_valid) begin
+            condition_checked_o <= 1'b1;
+            feedback_value_o    <= selected_result;
+            branch_taken_o      <= (selected_result == expected_value);
+        end else begin
+            missing_measurement_o <= 1'b1;
+            branch_taken_o        <= 1'b0;
+        end
+    end else begin
+        branch_taken_o <= 1'b1;
+    end
+end
+```
 
 ## 2.5.9 Top-level интеграция (`quantum_controller_top.sv`)
 
@@ -692,6 +875,42 @@ Measurement backpressure логиката използва `measurement_busy_o` 
 Top-level модулът изнася както основните функционални изходи, така и debug/status сигнали. Изходите `issue_*` позволяват наблюдение на scheduler stage-а, `command_*` описват execution command stage-а, measurement изходите описват заявките и резултатите от измерванията, а feedback изходите описват branch решенията. Допълнително `queue_count_o`, `qubit_busy_o`, `scheduler_stall_o`, `illegal_instr_o` и `illegal_issue_o` дават видимост върху вътрешното състояние на контролера.
 
 Интеграционното поведение е проверено чрез `tb/tb_quantum_controller_top.sv`. Тестът покрива reset, нормални gate команди, measurement request и result, conditional feedback branch, measurement backpressure, taken branch flush и invalid opcode поведение. Този testbench е основното доказателство, че отделните RTL модули работят съгласувано като единен контролер.
+
+Кодов фрагмент 2.8 показва top-level control-flow логиката в `rtl/quantum_controller_top.sv`, която свързва branch decision-а, queue flush-а и scheduler backpressure-а.
+
+```systemverilog
+assign queue_flush = feedback_valid_o && branch_taken_o;
+assign instr_ready_o = !queue_full && !queue_flush;
+
+assign measurement_issue_blocked =
+    measurement_busy_o ||
+    (sched_issue_valid && (sched_issue_instr.opcode == OP_MEASURE)) ||
+    (command_valid_o && (command_instr.opcode == OP_MEASURE));
+
+assign branch_issue_blocked =
+    branch_inflight_q ||
+    (sched_issue_valid && (sched_issue_instr.opcode == OP_BRANCH)) ||
+    (command_valid_o && (command_instr.opcode == OP_BRANCH));
+
+assign scheduler_issue_ready =
+    !queue_flush &&
+    !branch_issue_blocked &&
+    !(measurement_issue_blocked &&
+      !queue_empty &&
+      (queue_instr.opcode == OP_MEASURE));
+```
+
+Кодов фрагмент 2.9 показва регистровото branch in-flight състояние в същия top-level модул.
+
+```systemverilog
+if (feedback_valid_o) begin
+    branch_inflight_q <= 1'b0;
+end
+
+if (sched_issue_valid && (sched_issue_instr.opcode == OP_BRANCH)) begin
+    branch_inflight_q <= 1'b1;
+end
+```
 
 ---
 
