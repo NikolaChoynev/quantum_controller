@@ -342,7 +342,7 @@ results/synthesis_reports/quantum_controller_top_synth.json
 
 ## 11. Следваща непосредствена задача
 
-Следващата задача е продължаване на писането и преработката на Глава 2.
+Следващата задача е редакторско преглеждане, допълване с фигури/диаграми и прехвърляне на Глава 2 към официалния `.docx` документ.
 
 Текущ writing статус:
 
@@ -350,26 +350,23 @@ results/synthesis_reports/quantum_controller_top_synth.json
 docs/chapter_2_rtl_architecture.md
 ```
 
-В този работен Markdown файл разделите `2.1`, `2.2`, `2.3` и `2.4` са започнати/преработени във финален академичен стил, съобразен с реалния RTL код, последния control-flow fix и implementation-first правилото. Следващата непосредствена писмена задача е раздел `2.5 RTL имплементация на основните модули`, където трябва да се опишат конкретно `qc_pkg.sv`, `instruction_decoder.sv`, `operation_queue.sv`, `dependency_tracker.sv`, `scheduler.sv`, `execution_controller.sv`, `measurement_controller.sv`, `feedback_unit.sv` и `quantum_controller_top.sv`.
+В този работен Markdown файл разделите `2.1`–`2.10` са разписани като цялостна първа финална версия на Глава 2, съобразена с реалния RTL код, последния control-flow fix и implementation-first правилото. Текстът описва архитектурната концепция, RTL файловата организация, блоковата архитектура, scheduler формализацията, RTL имплементацията на модулите, вътрешните контролни състояния, end-to-end pipeline сценариите, Verilator проверката, Yosys-friendly synthesis flow-а и ограниченията на текущата реализация.
 
 Препоръчителна последователност:
 
-1. Довършване на `2.5 RTL имплементация на основните модули`.
-2. Писане на `2.6 FSM и вътрешни контролни състояния`.
-3. Писане на `2.7 Pipeline архитектура и end-to-end изпълнение`.
-4. Писане на `2.8 Verilator симулационна проверка на RTL`.
-5. Писане на `2.9 Синтезируемост и Yosys-friendly synthesis flow`.
-6. Писане на `2.10 Обобщение на реализираната RTL архитектура`.
-7. Добавяне/финализиране на таблици:
+1. Редакторски преглед на `docs/chapter_2_rtl_architecture.md` за стил, повторения, терминология и плавни преходи.
+2. Проверка на всички твърдения спрямо реалния RTL, testbench logs и Yosys report.
+3. Добавяне/финализиране на таблици:
    - requirements → RTL modules → tests;
    - RTL files → dissertation sections;
    - module → testbench → simulation log.
-8. Добавяне/финализиране на диаграми:
+4. Добавяне/финализиране на диаграми:
    - top-level block diagram;
    - instruction pipeline diagram;
    - scheduler/dependency flow;
    - measurement-feedback flow.
-9. След завършване на Глава 2 се преминава към UVM разработка и Глава 3.
+5. Прехвърляне на финализирания текст от Markdown към `docs/Дисертация.docx`.
+6. След завършване на Глава 2 се преминава към UVM разработка и Глава 3.
 
 ---
 
