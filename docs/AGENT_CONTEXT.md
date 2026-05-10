@@ -72,6 +72,20 @@
 - възможно бъдещо разширение;
 - следващ етап от проекта.
 
+### 4.1 Правило за поддръжка на AGENT_CONTEXT.md
+
+При всяка съществена нова промяна, корекция или напредък по проекта агентът трябва да прецени дали има информация, която е полезна за бъдещ контекст. Ако има такава информация, `docs/AGENT_CONTEXT.md` трябва да бъде обновен в същия работен цикъл.
+
+Като подходяща информация се считат:
+
+- нови RTL модули или съществени промени в поведението им;
+- нови testbench-и, regression резултати или synthesis резултати;
+- промени в архитектурни решения, ограничения или работния план;
+- нов потвърден commit, който променя реалния статус на проекта;
+- важни бележки за това какво вече е реализирано и какво все още не трябва да се твърди като завършено в дисертацията.
+
+Не трябва да се добавя шумна временна информация, непотвърдени идеи или подробни дневници от всяка команда. Файлът трябва да остане кратък, стабилен и полезен за следващ агент.
+
 ---
 
 ## 5. Текущ RTL статус
@@ -112,13 +126,28 @@ tb/tb_quantum_controller_top.sv
 scripts/run_verilator.sh
 ```
 
-Последният потвърден важен RTL commit е:
+Последният потвърден важен RTL/control commit е:
 
 ```text
-Integrate feedback unit into quantum controller top
+502415c Fix control scheduling hazards
 ```
 
-Този commit означава, че feedback логиката вече е интегрирана в top-level модула.
+Този commit означава, че освен интегрираната feedback логика са потвърдени и следните control-flow корекции:
+
+- `OP_WAIT` вече задържа scheduler-а за зададената `duration`;
+- `MEASURE` операциите имат backpressure и не се издава второ измерване, докато първото е pending;
+- `BRANCH` се третира като in-flight операция до получаване на feedback резултат;
+- при taken branch `operation_queue` се flush-ва, така че по-млади queued инструкции да не се изпълнят погрешно;
+- `rtl_synth/quantum_controller_top_synth.sv` е синхронизиран с това поведение.
+
+Потвърдено е чрез:
+
+```text
+./scripts/run_verilator.sh all
+./scripts/run_yosys_synth.sh
+```
+
+Yosys flow-ът минава с очаквани memory-to-register предупреждения за вътрешни масиви.
 
 ---
 
@@ -141,12 +170,13 @@ raw 32-bit instruction
 
 1. `instruction_decoder.sv` приема 32-битова инструкция и извлича `opcode`, `target_qubit`, `control_qubit`, `duration`, `flags` и illegal status.
 2. `operation_queue.sv` буферира валидни декодирани инструкции.
-3. `dependency_tracker.sv` проверява дали дадена операция използва заети кубити.
-4. `scheduler.sv` издава операция само ако няма dependency hazard.
-5. `execution_controller.sv` преобразува issued операцията в цифров command интерфейс.
-6. `measurement_controller.sv` обработва MEASURE команди, генерира measurement request и съхранява резултати.
-7. `feedback_unit.sv` обработва BRANCH/feedback сценарии на база съхранени measurement резултати.
-8. `quantum_controller_top.sv` интегрира всички основни модули.
+3. `operation_queue.sv` поддържа flush при taken branch.
+4. `dependency_tracker.sv` проверява дали дадена операция използва заети кубити.
+5. `scheduler.sv` издава операция само ако няма dependency hazard, downstream stage-ът е готов и няма активен WAIT hold.
+6. `execution_controller.sv` преобразува issued операцията в цифров command интерфейс.
+7. `measurement_controller.sv` обработва MEASURE команди, генерира measurement request и съхранява резултати.
+8. `feedback_unit.sv` обработва BRANCH/feedback сценарии на база съхранени measurement резултати.
+9. `quantum_controller_top.sv` интегрира всички основни модули и добавя top-level backpressure за MEASURE/BRANCH control-flow сценарии.
 
 ---
 
