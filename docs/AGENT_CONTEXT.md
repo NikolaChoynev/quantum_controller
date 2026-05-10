@@ -363,6 +363,8 @@ docs/chapter_2_rtl_architecture.md
 - conditional/unconditional branch логика от `rtl/feedback_unit.sv`;
 - `queue_flush`, measurement/branch backpressure и `branch_inflight_q` логика от `rtl/quantum_controller_top.sv`.
 
+За разделите `2.1`–`2.4` е добавена отделна traceability таблица, която свързва концептуалните твърдения с реалните RTL артефакти и с конкретните кодови фрагменти в `2.5`. Идеята е началните архитектурни раздели да останат четими и да не дублират SystemVerilog код, но да е ясно кой реален код доказва всяко важно твърдение.
+
 Препоръчителна последователност:
 
 1. Редакторски преглед на `docs/chapter_2_rtl_architecture.md` за стил, повторения, терминология и плавни преходи.

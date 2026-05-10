@@ -553,6 +553,25 @@ tb/tb_scheduler.sv
 
 Тези ограничения не обезсилват текущата архитектура, но трябва да бъдат ясно разграничени от бъдещи разширения. Възможно следващо развитие е добавяне на по-сложен scheduler, който анализира повече от една операция в queue-а, използва dependency graph представяне и позволява out-of-order или multi-issue изпълнение при независими операции.
 
+### Проследимост на раздели 2.1–2.4 към реалния RTL код
+
+Разделите `2.1`–`2.4` имат предимно архитектурна и формална роля. Поради това в тях не се дублират всички SystemVerilog откъси, но всяко съществено твърдение трябва да бъде проследимо към реален RTL фрагмент. Конкретните кодови откъси са събрани в `2.5`, където се описва имплементацията на модулите. Следната таблица показва къде концептуалните твърдения от началните раздели се свързват с реалния код.
+
+| Раздел | Основно твърдение | Реален RTL артефакт | Кодов фрагмент в 2.5 |
+|---|---|---|---|
+| `2.1` | Контролерът е instruction-driven pipeline | `rtl/quantum_controller_top.sv` | Фрагменти 2.8 и 2.9 |
+| `2.1.2` | Използва се фиксиран 32-битов instruction format | `rtl/qc_pkg.sv` | Фрагмент 2.1 |
+| `2.1.2` | Valid/conditional/feedback/expected flags имат фиксирани битови позиции | `rtl/qc_pkg.sv`, `rtl/instruction_decoder.sv`, `rtl/feedback_unit.sv` | Фрагменти 2.1, 2.2 и 2.7 |
+| `2.1.3` | RTL моделът не реализира физически backend, а цифров command/control слой | `rtl/execution_controller.sv`, `rtl/quantum_controller_top.sv` | Описано в 2.5.6 и фрагмент 2.8 |
+| `2.1.3` | Measurement и branch имат top-level control-flow защита | `rtl/measurement_controller.sv`, `rtl/feedback_unit.sv`, `rtl/quantum_controller_top.sv` | Фрагменти 2.6, 2.7, 2.8 и 2.9 |
+| `2.2` | Проектът е организиран около реални RTL, testbench, log и synthesis артефакти | `rtl/`, `tb/`, `results/`, `rtl_synth/` | Няма отделен кодов откъс; използват се препратки към файлове и артефакти |
+| `2.3` | Top-level модулът свързва decoder, queue, scheduler, execution, measurement и feedback блокове | `rtl/quantum_controller_top.sv` | Фрагменти 2.8 и 2.9 |
+| `2.3` | Queue flush при taken branch премахва по-младите инструкции | `rtl/operation_queue.sv`, `rtl/quantum_controller_top.sv` | Фрагменти 2.3 и 2.8 |
+| `2.4` | Scheduler-ът е in-order dependency-aware и използва busy-counter модел | `rtl/dependency_tracker.sv`, `rtl/scheduler.sv` | Фрагменти 2.4 и 2.5 |
+| `2.4` | `OP_WAIT` блокира scheduler-а чрез отделен wait counter | `rtl/scheduler.sv` | Фрагмент 2.5 |
+
+Така началните раздели остават четими като архитектурно описание, а реалните SystemVerilog доказателства са концентрирани в раздел `2.5`. При финалното прехвърляне към `.docx` тази таблица може да се запази като traceability таблица или да се използва като редакторска карта за поставяне на кодовите откъси.
+
 ---
 
 # 2.5 RTL имплементация на основните модули
