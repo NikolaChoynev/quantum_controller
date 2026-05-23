@@ -340,48 +340,83 @@ results/synthesis_reports/quantum_controller_top_synth.json
 
 ---
 
-## 11. Следваща непосредствена задача
+## 11. Текущ writing статус и начало на Глава 3
 
-Следващата задача е редакторско преглеждане, допълване с фигури/диаграми и прехвърляне на Глава 2 към официалния `.docx` документ.
-
-Текущ writing статус:
+Глава 2 има работен Markdown източник:
 
 ```text
 docs/chapter_2_rtl_architecture.md
 ```
 
-В този работен Markdown файл разделите `2.1`–`2.10` са разписани като цялостна първа финална версия на Глава 2, съобразена с реалния RTL код, последния control-flow fix и implementation-first правилото. Текстът описва архитектурната концепция, RTL файловата организация, блоковата архитектура, scheduler формализацията, RTL имплементацията на модулите, вътрешните контролни състояния, end-to-end pipeline сценариите, Verilator проверката, Yosys-friendly synthesis flow-а и ограниченията на текущата реализация.
+В него разделите `2.1`–`2.10` са разписани като цялостна версия на Глава 2, съобразена с реалния RTL код, последния control-flow fix и implementation-first правилото. Раздел `2.5` съдържа реални SystemVerilog кодови фрагменти от `rtl/`, а началните раздели имат traceability таблица към тези фрагменти.
 
-В раздел `2.5` вече са добавени реални кратки SystemVerilog кодови фрагменти, които трябва да се запазят или редакторски да се оформят при финалното прехвърляне към `.docx`:
+Официалният Word документ `docs/Дисертация.docx` е бил обновен и commit-нат за Глава 2 в commit:
 
-- flag и instruction struct дефиниции от `rtl/qc_pkg.sv`;
-- valid/illegal decode логика от `rtl/instruction_decoder.sv`;
-- `flush_i` поведение от `rtl/operation_queue.sv`;
-- resource detection и dependency hazard логика от `rtl/dependency_tracker.sv`;
-- `can_issue`, `stall_o` и `OP_WAIT` логика от `rtl/scheduler.sv`;
-- measurement pending/result логика от `rtl/measurement_controller.sv`;
-- conditional/unconditional branch логика от `rtl/feedback_unit.sv`;
-- `queue_flush`, measurement/branch backpressure и `branch_inflight_q` логика от `rtl/quantum_controller_top.sv`.
+```text
+f9ecbdc Update dissertation Chapter 2
+```
 
-За разделите `2.1`–`2.4` е добавена отделна traceability таблица, която свързва концептуалните твърдения с реалните RTL артефакти и с конкретните кодови фрагменти в `2.5`. Идеята е началните архитектурни раздели да останат четими и да не дублират SystemVerilog код, но да е ясно кой реален код доказва всяко важно твърдение.
+Важно за бъдещ агент: при финална редакция трябва да се провери дали `.docx` версията съдържа всички нужни реални кодови фрагменти и traceability елементи от `docs/chapter_2_rtl_architecture.md`. Markdown файлът остава най-подробният технически източник за Глава 2.
 
-Препоръчителна последователност:
+Започната е Phase C от работния план: UVM базирана верификационна среда за Глава 3.
 
-1. Редакторски преглед на `docs/chapter_2_rtl_architecture.md` за стил, повторения, терминология и плавни преходи.
-2. Проверка на всички твърдения спрямо реалния RTL, testbench logs и Yosys report.
-3. Проверка, че освен фигури и таблици текстът съдържа явни препратки към реалните артефакти: `rtl/*.sv`, `tb/*.sv`, `results/simulation_logs/*.log`, `results/waveforms/*.vcd`, `rtl_synth/` и `results/synthesis_reports/`.
-4. Проверка, че реалните SystemVerilog кодови фрагменти в раздел `2.5` са точни спрямо текущия RTL и са достатъчно кратки за дисертационен текст.
-5. Добавяне/финализиране на таблици:
-   - requirements → RTL modules → tests;
-   - RTL files → dissertation sections;
-   - module → testbench → simulation log.
-6. Добавяне/финализиране на диаграми:
-   - top-level block diagram;
-   - instruction pipeline diagram;
-   - scheduler/dependency flow;
-   - measurement-feedback flow.
-7. Прехвърляне на финализирания текст от Markdown към `docs/Дисертация.docx`.
-8. След завършване на Глава 2 се преминава към UVM разработка и Глава 3.
+Новият работен Markdown източник за Глава 3 е:
+
+```text
+docs/chapter_3_uvm_verification.md
+```
+
+Този файл трябва да се попълва постепенно при всяка нова UVM реализация. В него задължително трябва да има информация за:
+
+- каква UVM среда е реализирана;
+- кои файлове са създадени в `uvm/`;
+- как DUT е свързан към testbench-а;
+- какво съдържа transaction/sequence item;
+- как работят sequencer, driver, monitor, scoreboard и coverage;
+- какви directed tests са реализирани;
+- какви constrained-random/stress tests са реализирани;
+- какви algorithmic workloads са реализирани;
+- как се пускат симулациите;
+- какви log/waveform/coverage резултати има;
+- какви ограничения има текущата UVM среда.
+
+Към текущия момент са реализирани първите UVM файлове:
+
+```text
+uvm/qc_uvm_pkg.sv
+uvm/qc_sequence_item.sv
+```
+
+`uvm/qc_uvm_pkg.sv` импортира `uvm_pkg`, включва `uvm_macros.svh`, импортира `qc_pkg` и включва `qc_sequence_item.sv`.
+
+`uvm/qc_sequence_item.sv` реализира `qc_sequence_item extends uvm_sequence_item`. Той използва реалните RTL параметри и типове от `rtl/qc_pkg.sv`: `qc_opcode_e`, `INSTR_W`, `QUBIT_ID_W`, `DURATION_W`, `FLAGS_W`, `RESERVED_W` и flag bit константите. Transaction item-ът съдържа opcode, target/control qubit, duration, flags, reserved, valid/invalid controls, raw override support и measurement response metadata. Добавени са helper функции `pack_raw()`, `update_raw()`, `load_raw()`, `to_fields()` и classification helpers за gate/measurement/branch инструкции.
+
+Още не са реализирани:
+
+```text
+uvm/qc_sequencer.sv
+uvm/qc_sequences.sv
+uvm/qc_driver.sv
+uvm/qc_monitor.sv
+uvm/qc_scoreboard.sv
+uvm/qc_coverage.sv
+uvm/qc_agent.sv
+uvm/qc_env.sv
+uvm/qc_base_test.sv
+uvm/tb_qc_uvm_top.sv
+scripts/run_uvm.sh
+```
+
+Наличният локален simulator flow към момента е Verilator за non-UVM RTL testbench-и. `vlog/vsim`, `xrun` и `vcs` не са намерени в PATH при последната проверка. Затова новият UVM код все още не е стартиран като UVM симулация и не трябва да се твърди, че има UVM logs/waveforms/coverage резултати.
+
+Следващата непосредствена задача е Phase C2:
+
+```text
+uvm/qc_sequencer.sv
+uvm/qc_sequences.sv
+```
+
+След всяка UVM стъпка трябва да се обновяват `docs/chapter_3_uvm_verification.md` и, ако има стабилна нова информация за бъдещ агент, този `docs/AGENT_CONTEXT.md`.
 
 ---
 
@@ -392,6 +427,7 @@ docs/chapter_2_rtl_architecture.md
 ```text
 docs/AGENT_CONTEXT.md
 docs/chapter_2_rtl_architecture.md
+docs/chapter_3_uvm_verification.md
 docs/Работен План.docx
 docs/Структура на дисертационен труд.docx
 docs/Дисертация.docx
@@ -402,6 +438,7 @@ docs/Дисертация.docx
 ```text
 rtl/
 tb/
+uvm/
 scripts/
 rtl_synth/
 ```
