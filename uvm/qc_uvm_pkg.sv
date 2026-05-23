@@ -11,6 +11,8 @@ package qc_uvm_pkg;
     import qc_pkg::*;
 
     `include "qc_sequence_item.sv"
+    `include "qc_sequencer.sv"
+    `include "qc_sequences.sv"
 
 endpackage : qc_uvm_pkg
 

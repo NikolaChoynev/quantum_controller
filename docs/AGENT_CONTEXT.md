@@ -385,17 +385,29 @@ docs/chapter_3_uvm_verification.md
 ```text
 uvm/qc_uvm_pkg.sv
 uvm/qc_sequence_item.sv
+uvm/qc_sequencer.sv
+uvm/qc_sequences.sv
 ```
 
-`uvm/qc_uvm_pkg.sv` импортира `uvm_pkg`, включва `uvm_macros.svh`, импортира `qc_pkg` и включва `qc_sequence_item.sv`.
+`uvm/qc_uvm_pkg.sv` импортира `uvm_pkg`, включва `uvm_macros.svh`, импортира `qc_pkg` и включва `qc_sequence_item.sv`, `qc_sequencer.sv` и `qc_sequences.sv`.
 
 `uvm/qc_sequence_item.sv` реализира `qc_sequence_item extends uvm_sequence_item`. Той използва реалните RTL параметри и типове от `rtl/qc_pkg.sv`: `qc_opcode_e`, `INSTR_W`, `QUBIT_ID_W`, `DURATION_W`, `FLAGS_W`, `RESERVED_W` и flag bit константите. Transaction item-ът съдържа opcode, target/control qubit, duration, flags, reserved, valid/invalid controls, raw override support и measurement response metadata. Добавени са helper функции `pack_raw()`, `update_raw()`, `load_raw()`, `to_fields()` и classification helpers за gate/measurement/branch инструкции.
+
+`uvm/qc_sequencer.sv` реализира `qc_sequencer extends uvm_sequencer #(qc_sequence_item)`.
+
+`uvm/qc_sequences.sv` реализира:
+
+- `qc_base_sequence` с helper функции `make_flags()`, `send_instruction()` и `send_raw_instruction()`;
+- directed sequences: `qc_smoke_sequence`, `qc_single_gate_sequence`, `qc_cnot_sequence`, `qc_measure_sequence`, `qc_wait_sequence`, `qc_branch_sequence`, `qc_invalid_opcode_sequence`;
+- random/stress sequences: `qc_random_instruction_sequence`, `qc_dependency_stress_sequence`;
+- algorithmic workload sequences: `qc_algorithmic_bell_sequence`, `qc_algorithmic_ghz_sequence`, `qc_algorithmic_grover_like_sequence`.
+
+Важно: тези sequence класове все още не са изпълнявани срещу DUT, защото driver, virtual interface, agent/env и UVM top-level testbench още не са реализирани.
 
 Още не са реализирани:
 
 ```text
-uvm/qc_sequencer.sv
-uvm/qc_sequences.sv
+uvm/qc_if.sv
 uvm/qc_driver.sv
 uvm/qc_monitor.sv
 uvm/qc_scoreboard.sv
@@ -409,12 +421,14 @@ scripts/run_uvm.sh
 
 Наличният локален simulator flow към момента е Verilator за non-UVM RTL testbench-и. `vlog/vsim`, `xrun` и `vcs` не са намерени в PATH при последната проверка. Затова новият UVM код все още не е стартиран като UVM симулация и не трябва да се твърди, че има UVM logs/waveforms/coverage резултати.
 
-Следващата непосредствена задача е Phase C2:
+Следващата непосредствена задача е Phase C3:
 
 ```text
-uvm/qc_sequencer.sv
-uvm/qc_sequences.sv
+uvm/qc_if.sv
+uvm/qc_driver.sv
 ```
+
+Целта е driver-ът да получава `qc_sequence_item` от sequencer-а, да изчаква `instr_ready_o`, да подава `instr_i/instr_valid_i`, и при measurement item да използва `send_measurement_result`, `measurement_result_value` и `measurement_latency_cycles`, за да подаде feedback резултат към DUT.
 
 След всяка UVM стъпка трябва да се обновяват `docs/chapter_3_uvm_verification.md` и, ако има стабилна нова информация за бъдещ агент, този `docs/AGENT_CONTEXT.md`.
 

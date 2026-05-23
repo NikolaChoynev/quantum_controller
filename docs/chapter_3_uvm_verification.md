@@ -13,14 +13,16 @@
 → едва след това се описва като завършен резултат във финалната дисертация
 ```
 
-Към текущия момент е започната Phase C от работния план. Реализирана е началната UVM инфраструктура за transaction/sequence item слой:
+Към текущия момент е започната Phase C от работния план. Реализирана е началната UVM инфраструктура за transaction/sequence item и stimulus generation слой:
 
 ```text
 uvm/qc_uvm_pkg.sv
 uvm/qc_sequence_item.sv
+uvm/qc_sequencer.sv
+uvm/qc_sequences.sv
 ```
 
-Все още не са реализирани sequencer, driver, monitor, scoreboard, coverage collector, UVM environment, UVM tests или UVM top-level testbench. Те са описани по-долу като следващи стъпки, а не като завършени резултати.
+Все още не са реализирани driver, monitor, scoreboard, coverage collector, UVM agent/environment, UVM tests или UVM top-level testbench. Sequencer-ът и sequence класовете вече съществуват като UVM код, но все още не са изпълнявани срещу DUT, защото няма driver/interface/env слой.
 
 ---
 
@@ -30,14 +32,14 @@ uvm/qc_sequence_item.sv
 
 | № | Изисквана информация | Текущ статус | Къде се попълва |
 |---:|---|---|---|
-| 1 | Каква UVM среда е реализирана | Започната е UVM среда; налични са package и transaction item | Раздели 3.2 и 3.4 |
-| 2 | Кои файлове са създадени в `uvm/` | Създадени са `qc_uvm_pkg.sv` и `qc_sequence_item.sv` | Раздел 3.2 |
+| 1 | Каква UVM среда е реализирана | Започната е UVM среда; налични са package, transaction item, sequencer и sequence classes | Раздели 3.2, 3.4 и 3.5 |
+| 2 | Кои файлове са създадени в `uvm/` | Създадени са `qc_uvm_pkg.sv`, `qc_sequence_item.sv`, `qc_sequencer.sv` и `qc_sequences.sv` | Раздел 3.2 |
 | 3 | Как DUT е свързан към testbench-а | Все още не е реализирано; описан е планираният интерфейс към `quantum_controller_top` | Раздел 3.3 |
 | 4 | Какво съдържа transaction/sequence item | Реализирано в `uvm/qc_sequence_item.sv` | Раздел 3.4 |
-| 5 | Как работят sequencer, driver, monitor, scoreboard и coverage | Все още не са реализирани; описани са проектните роли | Раздел 3.5 |
-| 6 | Какви directed tests са реализирани | Все още няма UVM directed tests; има Verilator baseline тестове в `tb/` | Раздел 3.6.1 |
-| 7 | Какви constrained-random/stress tests са реализирани | Все още не са реализирани | Раздел 3.6.2 |
-| 8 | Какви algorithmic workloads са реализирани | Все още не са реализирани в UVM | Раздел 3.6.3 |
+| 5 | Как работят sequencer, driver, monitor, scoreboard и coverage | Sequencer и sequences са реализирани; driver/monitor/scoreboard/coverage предстоят | Раздел 3.5 |
+| 6 | Какви directed tests са реализирани | Има directed sequence класове; executable UVM tests още няма | Раздел 3.6.1 |
+| 7 | Какви constrained-random/stress tests са реализирани | Има random и dependency stress sequence класове; още не са изпълнявани | Раздел 3.6.2 |
+| 8 | Какви algorithmic workloads са реализирани | Има Bell, GHZ и Grover-like sequence класове; още не са изпълнявани | Раздел 3.6.3 |
 | 9 | Как се пускат симулациите | RTL baseline се пуска с `scripts/run_verilator.sh`; UVM simulation script още не е реализиран | Раздел 3.7 |
 | 10 | Какви log/waveform/coverage резултати има | Налични са RTL Verilator logs/waves; UVM logs/waves/coverage още няма | Раздел 3.8 |
 | 11 | Какви ограничения има текущата UVM среда | Описани са текущите ограничения и toolchain липси | Раздел 3.9 |
@@ -64,7 +66,7 @@ UVM средата трябва да работи върху основната 
 4. Scoreboard-ът сравнява очакваното поведение с наблюдаваните DUT изходи.
 5. Coverage collector-ът отчита opcode покритие, flag комбинации, dependency/stall сценарии, measurement-feedback сценарии, branch taken/not-taken сценарии и queue/backpressure състояния.
 
-Към момента тази методология е заложена в плана, но реално имплементиран е само transaction/sequence item слой.
+Към момента тази методология е заложена в плана, като реално имплементирани са transaction/sequence item слой, sequencer и начални sequence класове. Следващият липсващ слой е driver/interface, който трябва да свърже sequence stream-а към реалните DUT сигнали.
 
 ---
 
@@ -76,12 +78,12 @@ UVM средата трябва да работи върху основната 
 |---|---|---|
 | `uvm/qc_uvm_pkg.sv` | Реализиран | Общ UVM package, който импортира `uvm_pkg`, `qc_pkg` и включва UVM класовете |
 | `uvm/qc_sequence_item.sv` | Реализиран | Transaction/sequence item за генериране на instruction-level stimulus |
+| `uvm/qc_sequencer.sv` | Реализиран | Типизиран UVM sequencer за `qc_sequence_item` |
+| `uvm/qc_sequences.sv` | Реализиран | Directed, random, stress и algorithmic sequence класове |
 
 Все още не са създадени:
 
 ```text
-uvm/qc_sequencer.sv
-uvm/qc_sequences.sv
 uvm/qc_driver.sv
 uvm/qc_monitor.sv
 uvm/qc_scoreboard.sv
@@ -109,6 +111,8 @@ package qc_uvm_pkg;
     import qc_pkg::*;
 
     `include "qc_sequence_item.sv"
+    `include "qc_sequencer.sv"
+    `include "qc_sequences.sv"
 
 endpackage : qc_uvm_pkg
 ```
@@ -373,43 +377,177 @@ constraint measurement_response_c {
 
 ---
 
-# 3.5 Планирани UVM компоненти
+# 3.5 UVM компоненти за stimulus generation и планирани следващи блокове
 
-Този раздел описва как трябва да работят следващите компоненти. Към момента те не са реализирани.
+Този раздел описва реализираните stimulus generation компоненти и следващите планирани UVM блокове. Към момента sequencer-ът и sequence класовете са реализирани, но driver, monitor, scoreboard, coverage, agent, environment и executable UVM tests все още предстоят.
 
 ## 3.5.1 Sequencer
 
-Планиран файл:
+Реализиран файл:
 
 ```text
 uvm/qc_sequencer.sv
 ```
 
-Sequencer-ът трябва да бъде типизиран върху `qc_sequence_item` и да предоставя transaction stream към driver-а. Неговата роля ще бъде стандартна за UVM active agent: да приема directed или constrained-random sequences и да ги подава към driver-а чрез `seq_item_port`.
+Sequencer-ът е типизиран върху `qc_sequence_item` и предоставя transaction stream към бъдещия driver. Неговата роля е стандартна за UVM active agent: да приема directed или constrained-random sequences и да ги подава към driver-а чрез `seq_item_port`.
+
+## Кодов фрагмент 3.8 – Типизиран UVM sequencer
+
+От `uvm/qc_sequencer.sv`:
+
+```systemverilog
+class qc_sequencer extends uvm_sequencer #(qc_sequence_item);
+
+    `uvm_component_utils(qc_sequencer)
+
+    function new(string name = "qc_sequencer", uvm_component parent = null);
+        super.new(name, parent);
+    endfunction
+
+endclass : qc_sequencer
+```
 
 ## 3.5.2 Sequences
 
-Планиран файл:
+Реализиран файл:
 
 ```text
 uvm/qc_sequences.sv
 ```
 
-Последователностите трябва да включват:
+Файлът `uvm/qc_sequences.sv` съдържа базов sequence клас и набор от начални directed, constrained-random, stress и algorithmic sequences. Тези класове генерират `qc_sequence_item` обекти, но още не са изпълнявани срещу DUT, защото driver и UVM testbench top още не са реализирани.
 
-| Sequence | Цел |
-|---|---|
-| `qc_smoke_sequence` | Минимална H/MEASURE/RESET проверка |
-| `qc_single_gate_sequence` | Directed H, X, Z инструкции |
-| `qc_cnot_sequence` | Двукубитна CNOT проверка |
-| `qc_measure_sequence` | Measurement request и result сценарий |
-| `qc_wait_sequence` | WAIT hold/stall поведение |
-| `qc_branch_sequence` | Conditional/unconditional branch поведение |
-| `qc_random_instruction_sequence` | Constrained-random instruction stream |
-| `qc_dependency_stress_sequence` | Hazards върху едни и същи кубити |
-| `qc_algorithmic_bell_sequence` | Bell workload |
-| `qc_algorithmic_ghz_sequence` | GHZ workload |
-| `qc_algorithmic_grover_like_sequence` | Grover-like workload |
+| Sequence class | Статус | Цел |
+|---|---|---|
+| `qc_base_sequence` | Реализиран | Общ helper слой за flags, raw и structured instruction изпращане |
+| `qc_smoke_sequence` | Реализиран | Минимален H → MEASURE → BRANCH сценарий |
+| `qc_single_gate_sequence` | Реализиран | Directed H, X и Z инструкции |
+| `qc_cnot_sequence` | Реализиран | H + CNOT двукубитен сценарий |
+| `qc_measure_sequence` | Реализиран | MEASURE с measurement response metadata |
+| `qc_wait_sequence` | Реализиран | WAIT hold/stall stimulus |
+| `qc_branch_sequence` | Реализиран | MEASURE + conditional BRANCH + следваща инструкция |
+| `qc_invalid_opcode_sequence` | Реализиран | Raw invalid opcode injection |
+| `qc_random_instruction_sequence` | Реализиран | Constrained-random валиден instruction stream |
+| `qc_dependency_stress_sequence` | Реализиран | Последователни операции върху общи qubit ресурси |
+| `qc_algorithmic_bell_sequence` | Реализиран | Bell workload |
+| `qc_algorithmic_ghz_sequence` | Реализиран | GHZ workload |
+| `qc_algorithmic_grover_like_sequence` | Реализиран | Grover-like workload |
+
+## Кодов фрагмент 3.9 – Helper функция за flags
+
+Базовият sequence клас съдържа функция `make_flags()`, която кодира valid, conditional, feedback и expected битовете със същите bit позиции като RTL package-а.
+
+```systemverilog
+function automatic logic [FLAGS_W-1:0] make_flags(
+    input bit valid       = 1'b1,
+    input bit conditional = 1'b0,
+    input bit feedback    = 1'b0,
+    input bit expected    = 1'b0
+);
+    logic [FLAGS_W-1:0] flags;
+
+    flags = '0;
+    flags[FLAG_VALID_BIT]       = valid;
+    flags[FLAG_CONDITIONAL_BIT] = conditional;
+    flags[FLAG_FEEDBACK_BIT]    = feedback;
+    flags[FLAG_EXPECTED_BIT]    = expected;
+
+    return flags;
+endfunction
+```
+
+Така UVM stimulus-ът не използва магически стойности за branch флаговете, а се опира на същите константи, които управляват `instruction_decoder.sv` и `feedback_unit.sv`.
+
+## Кодов фрагмент 3.10 – Structured instruction stimulus
+
+Функцията `send_instruction()` създава `qc_sequence_item`, попълва полетата му и обновява `raw_instr`. Бъдещият driver ще получава точно тези item-и през sequencer-а.
+
+```systemverilog
+virtual task send_instruction(
+    input qc_opcode_e opcode_i,
+    input logic [QUBIT_ID_W-1:0] target_qubit_i  = '0,
+    input logic [QUBIT_ID_W-1:0] control_qubit_i = '0,
+    input logic [DURATION_W-1:0] duration_i      = 12'd1,
+    input logic [FLAGS_W-1:0] flags_i            = (1'b1 << FLAG_VALID_BIT),
+    input logic [RESERVED_W-1:0] reserved_i      = '0,
+    input bit send_measurement_result_i          = 1'b0,
+    input bit measurement_result_value_i         = 1'b0,
+    input int unsigned measurement_latency_i     = 3
+);
+    qc_sequence_item item;
+
+    item = qc_sequence_item::type_id::create("item");
+
+    item.opcode                     = opcode_i;
+    item.target_qubit               = target_qubit_i;
+    item.control_qubit              = control_qubit_i;
+    item.duration                   = duration_i;
+    item.flags                      = flags_i;
+    item.reserved                   = reserved_i;
+    item.valid_instruction          = flags_i[FLAG_VALID_BIT];
+    item.allow_invalid_opcode       = 1'b0;
+    item.raw_override_en            = 1'b0;
+    item.raw_override_value         = '0;
+    item.send_measurement_result    = send_measurement_result_i;
+    item.measurement_result_value   = measurement_result_value_i;
+    item.measurement_latency_cycles = measurement_latency_i;
+    item.update_raw();
+
+    start_item(item);
+    finish_item(item);
+endtask
+```
+
+## Кодов фрагмент 3.11 – Smoke sequence
+
+`qc_smoke_sequence` е минимален end-to-end stimulus шаблон: gate операция, measurement операция и conditional feedback branch.
+
+```systemverilog
+virtual task body();
+    send_instruction(OP_H,       4'd0, 4'd0, 12'd4,  make_flags());
+    send_instruction(OP_MEASURE, 4'd0, 4'd0, 12'd6,  make_flags(), '0, 1'b1, 1'b1, 3);
+    send_instruction(OP_BRANCH,  4'd0, 4'd0, 12'd16, make_flags(1'b1, 1'b1, 1'b1, 1'b1));
+endtask
+```
+
+Този sequence е полезен за първия бъдещ UVM smoke test, защото преминава през gate path, measurement path и feedback path.
+
+## Кодов фрагмент 3.12 – Constrained-random instruction stream
+
+`qc_random_instruction_sequence` използва constraints от `qc_sequence_item`, за да генерира валидни инструкции без raw override и без invalid opcode injection.
+
+```systemverilog
+repeat (item_count) begin
+    item = qc_sequence_item::type_id::create("random_item");
+
+    start_item(item);
+    if (!item.randomize() with {
+        raw_override_en == 1'b0;
+        allow_invalid_opcode == 1'b0;
+        valid_instruction == 1'b1;
+    }) begin
+        `uvm_error(get_type_name(), "Failed to randomize qc_sequence_item")
+    end
+    finish_item(item);
+end
+```
+
+Този sequence е основата за бъдещи random regression тестове. След добавяне на driver/monitor/scoreboard той ще може да проверява по-дълги валидни instruction streams.
+
+## Кодов фрагмент 3.13 – Algorithmic Bell workload
+
+`qc_algorithmic_bell_sequence` показва как алгоритмично мотивиран workload се представя чрез същия instruction-level API.
+
+```systemverilog
+virtual task body();
+    send_instruction(OP_H,       4'd0, 4'd0, 12'd4, make_flags());
+    send_instruction(OP_CNOT,    4'd1, 4'd0, 12'd8, make_flags());
+    send_instruction(OP_MEASURE, 4'd0, 4'd0, 12'd6, make_flags(), '0, 1'b1, 1'b0, 3);
+    send_instruction(OP_MEASURE, 4'd1, 4'd0, 12'd6, make_flags(), '0, 1'b1, 1'b0, 3);
+endtask
+```
+
+Тук Bell workload-ът не е физическа квантова симулация, а instruction-level stimulus за контролера. Той проверява дали контролерът може да обработи последователност от еднокубитна операция, двукубитна операция и измервания.
 
 ## 3.5.3 Driver
 
@@ -502,7 +640,7 @@ Coverage моделът трябва да измерва не само opcode п
 
 ## 3.6.1 Directed tests
 
-Все още няма реализирани UVM directed tests.
+Все още няма executable UVM directed tests, защото липсват driver, UVM environment и test top. Вече има реализирани directed sequence класове в `uvm/qc_sequences.sv`, които ще бъдат използвани от бъдещите UVM tests.
 
 Като functional baseline съществуват Verilator testbench-и в `tb/`, включително:
 
@@ -520,53 +658,59 @@ tb/tb_quantum_controller_top.sv
 
 Те не са UVM tests и не трябва да се описват като такива. Тяхната роля за Глава 3 е да служат като източник на directed сценарии, които трябва да бъдат прехвърлени в UVM sequences.
 
-Планираните UVM directed tests са:
+Текущите directed sequence класове покриват следните сценарии:
 
-| Тест | Цел |
+| Sequence | Покрит сценарий |
 |---|---|
-| H instruction | Проверка на еднокубитна gate команда |
-| X instruction | Проверка на еднокубитна gate команда |
-| Z instruction | Проверка на еднокубитна gate команда |
-| CNOT instruction | Проверка на двукубитна gate команда |
-| MEASURE instruction | Проверка на measurement request и result handling |
-| WAIT instruction | Проверка на scheduler WAIT hold |
-| RESET instruction | Проверка на reset command classification |
-| BRANCH unconditional | Проверка на безусловен branch |
-| BRANCH conditional taken | Проверка на taken feedback branch |
-| BRANCH conditional not taken | Проверка на not-taken feedback branch |
-| Invalid opcode | Проверка на illegal instruction handling |
-| Queue flush after branch | Проверка, че taken branch flush-ва по-млади queued инструкции |
-| Measurement backpressure | Проверка, че второ измерване не се издава, докато първото е pending |
+| `qc_smoke_sequence` | H → MEASURE → conditional BRANCH |
+| `qc_single_gate_sequence` | H, X и Z |
+| `qc_cnot_sequence` | H + CNOT |
+| `qc_measure_sequence` | MEASURE с measurement response metadata |
+| `qc_wait_sequence` | WAIT между две gate операции |
+| `qc_branch_sequence` | MEASURE + conditional branch + по-млада инструкция |
+| `qc_invalid_opcode_sequence` | Raw invalid opcode |
+
+След добавяне на driver и scoreboard тези sequence класове трябва да бъдат обвити в executable UVM tests, например `qc_smoke_test`, `qc_single_gate_test`, `qc_measure_test`, `qc_branch_test` и `qc_invalid_opcode_test`.
 
 ## 3.6.2 Constrained-random и stress tests
 
-Все още няма реализирани UVM constrained-random или stress tests.
+Все още няма executable UVM constrained-random или stress tests, но вече има sequence класове за random и dependency stress stimulus.
 
-Планираните random/stress направления са:
+Реализирани sequence класове:
+
+| Sequence | Описание |
+|---|---|
+| `qc_random_instruction_sequence` | Random opcode, qubit, duration и flag комбинации с валиден instruction format |
+| `qc_dependency_stress_sequence` | Операции върху едни и същи qubit ресурси за dependency/stall stimulus |
+
+Остават за бъдещо разширяване:
 
 | Направление | Описание |
 |---|---|
-| Random valid instruction stream | Random opcode, qubit, duration и flag комбинации с валиден instruction format |
-| Random dependency stream | Операции върху едни и същи кубити за dependency/stall проверка |
 | Queue pressure | Дълги instruction bursts за full/non-empty queue състояния |
 | Measurement latency variation | Различни latency стойности за measurement result подаване |
 | Branch feedback variation | Conditional branch с expected 0/1 и measurement 0/1 |
-| Illegal injection | Контролирано вкарване на invalid opcode/raw malformed инструкции |
+| Illegal injection | По-богато контролирано вкарване на invalid opcode/raw malformed инструкции |
 | Long WAIT stress | WAIT операции с различна продължителност |
 
 ## 3.6.3 Algorithmic workloads
 
-Все още няма реализирани UVM algorithmic workloads.
+Вече има реализирани UVM sequence класове за начални algorithmic workloads, но те все още не са изпълнявани срещу DUT.
 
-Планираните algorithmic workloads са:
+Реализираните algorithmic sequence класове са:
 
-| Workload | Instruction идея | Цел |
+| Sequence | Instruction идея | Цел |
 |---|---|---|
-| Bell workload | H върху q0, CNOT q0→q1, measurement | Проверка на зависимост между еднокубитна и двукубитна операция |
-| GHZ workload | H върху q0, CNOT chain към q1/q2/q3, measurements | Проверка на последователни multi-qubit зависимости |
-| Grover-like workload | H/X/Z/conditional branch pattern | Проверка на смесени gate и feedback сценарии |
-| Measurement-feedback workload | MEASURE + conditional BRANCH | Проверка на feedback path и branch decision |
-| Random-circuit-inspired workload | Random gates върху различни qubit-и | Проверка на по-дълги instruction streams и coverage |
+| `qc_algorithmic_bell_sequence` | H върху q0, CNOT q0→q1, measurement | Проверка на зависимост между еднокубитна и двукубитна операция |
+| `qc_algorithmic_ghz_sequence` | H върху q0, CNOT chain, measurements | Проверка на последователни multi-qubit зависимости |
+| `qc_algorithmic_grover_like_sequence` | H/X/Z/CNOT/MEASURE/conditional BRANCH pattern | Проверка на смесени gate и feedback сценарии |
+
+Остават за бъдещо добавяне:
+
+| Workload | Цел |
+|---|---|
+| Measurement-feedback workload variants | Повече комбинации от expected/result branch outcomes |
+| Random-circuit-inspired workload | По-дълги random gate streams върху различни qubit-и |
 
 Тези workloads са алгоритмично мотивирани. Те не трябва да се описват като физическа квантова симулация или като възпроизвеждане на реален quantum backend.
 
@@ -647,13 +791,13 @@ results/waveforms/
 
 Текущите ограничения са:
 
-1. Реализиран е само UVM package и transaction/sequence item.
-2. Няма sequencer, driver, monitor, scoreboard, coverage collector, agent, env или UVM tests.
+1. Реализирани са UVM package, transaction/sequence item, sequencer и начални sequence класове.
+2. Няма driver, monitor, scoreboard, coverage collector, agent, env или executable UVM tests.
 3. DUT все още не е свързан към UVM testbench чрез virtual interface.
 4. Няма UVM simulation script.
 5. Няма потвърден UVM simulator в PATH освен Verilator, който се използва за съществуващите non-UVM RTL testbench-и.
 6. Няма UVM logs, UVM waveforms или UVM coverage reports.
-7. Constrained-random, stress и algorithmic workloads са планирани, но не са реализирани.
+7. Constrained-random, stress и algorithmic workloads съществуват като sequence класове, но не са изпълнявани и още нямат scoreboard/coverage резултати.
 
 Тези ограничения са нормални за текущия етап, защото Phase C току-що е започната. Те трябва да бъдат премахвани постепенно с всяка следваща реализация.
 
@@ -685,15 +829,16 @@ results/waveforms/
 Следващата реална стъпка по Phase C е:
 
 ```text
-C2: qc_sequencer.sv и начални sequences
+C3: virtual interface и qc_driver.sv
 ```
 
 Препоръчителен ред:
 
-1. Създаване на `uvm/qc_sequencer.sv`.
-2. Създаване на `uvm/qc_sequences.sv` с поне smoke/directed sequence за H, MEASURE и BRANCH.
-3. Обновяване на `uvm/qc_uvm_pkg.sv`, за да include-ва новите файлове.
-4. Обновяване на този Markdown файл с реални code excerpts от sequencer/sequences.
-5. Обновяване на `docs/AGENT_CONTEXT.md` с новия UVM статус.
+1. Създаване на SystemVerilog interface за DUT сигналите, например `uvm/qc_if.sv`.
+2. Създаване на `uvm/qc_driver.sv`.
+3. Driver-ът трябва да извлича `qc_sequence_item` от `qc_sequencer`, да изчаква `instr_ready_o`, да подава `instr_i/instr_valid_i` и да обработва measurement response metadata.
+4. Обновяване на `uvm/qc_uvm_pkg.sv`, ако новите класове трябва да бъдат include-нати в package-а.
+5. Обновяване на този Markdown файл с реални code excerpts от interface/driver.
+6. Обновяване на `docs/AGENT_CONTEXT.md` с новия UVM статус.
 
-След това трябва да се премине към driver и interface, защото без driver DUT все още не може да бъде управляван от UVM средата.
+Без driver и interface DUT все още не може да бъде управляван от UVM средата, въпреки че sequence stimulus-ът вече е дефиниран.
