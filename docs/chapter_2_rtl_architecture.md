@@ -1314,3 +1314,326 @@ Replacing memory \busy_cnt_q with list of registers
 - coverage model за opcode, flags, dependency hazards, stalls, measurement и branch outcomes.
 
 Така Глава 2 завършва с реализирана и симулационно проверена RTL архитектура, а Глава 3 естествено продължава към систематична UVM базирана функционална верификация на същия DUT.
+
+---
+
+# 2.11 Редакторска карта за допълване на Word версията на Глава 2
+
+Този раздел е добавен като практическа карта за синхронизиране на `docs/Дисертация.docx` с настоящия Markdown файл. Той не е задължително да остане като самостоятелен раздел във финалната дисертация. Целта му е да покаже какво трябва да се добави или поправи в Word версията, така че Глава 2 да не остане само с текстово описание на RTL модулите, а да съдържа реални и правилно форматирани SystemVerilog фрагменти.
+
+При последния преглед на `docs/Дисертация.docx` Глава 2 вече съдържа раздел `2.5 RTL имплементация на основните модули` и captions за фрагментите. Основният проблем е, че част от кодовите откъси са вкарани като слят едноредов текст без line breaks, а някои важни фрагменти липсват или не са достатъчно ясно отделени като кодови блокове. Това отслабва проследимостта между дисертационния текст и реалния RTL код.
+
+## 2.11.1 Минимални правила за редакция на кодовите фрагменти в Word
+
+При прехвърляне към `.docx` всеки кодов откъс трябва да бъде форматиран като отделен моноширинен блок, а не като обикновен параграф. Трябва да се запазят:
+
+- line breaks;
+- indentation;
+- празните редове между логически части на кода;
+- името на source файла преди или след caption-а;
+- кратко обяснение какво доказва фрагментът.
+
+Неправилен вариант:
+
+```text
+assign queue_flush = feedback_valid_o && branch_taken_o;assign instr_ready_o = !queue_full && !queue_flush;assign measurement_issue_blocked = ...
+```
+
+Правилен вариант:
+
+```systemverilog
+assign queue_flush = feedback_valid_o && branch_taken_o;
+assign instr_ready_o = !queue_full && !queue_flush;
+
+assign measurement_issue_blocked =
+    measurement_busy_o ||
+    (sched_issue_valid && (sched_issue_instr.opcode == OP_MEASURE)) ||
+    (command_valid_o && (command_instr.opcode == OP_MEASURE));
+```
+
+Това е важно, защото в дисертационен текст кодовият фрагмент не трябва само да присъства формално, а трябва да бъде четим и проверим.
+
+## 2.11.2 Таблица за допълване на фрагментите във Word версията
+
+Следната таблица може да се използва като директна редакторска карта при повторно обновяване на `docs/Дисертация.docx`.
+
+| Word място | Source файл | Какво трябва да се направи | Причина |
+|---|---|---|---|
+| След caption `Фрагмент 2.1` | `rtl/qc_pkg.sv` | Да се запази кодът, но да се форматира като multi-line моноширинен блок | В момента може да изглежда като слят текст |
+| След caption `Фрагмент 2.2` | `rtl/instruction_decoder.sv` | Да се запази `valid_o` и `illegal_o` логиката като multi-line блок | Доказва valid/illegal decode |
+| След caption `Фрагмент 2.3` | `rtl/operation_queue.sv` | Да се запази reset/flush/push/pop логиката с line breaks | Доказва branch flush и FIFO поведение |
+| След caption `Фрагмент 2.4` | `rtl/dependency_tracker.sv` | Да се запази resource detection и hazard assign логиката | Доказва dependency model |
+| След caption `Фрагмент 2.5` | `rtl/scheduler.sv` | Да се запази `can_issue`, `stall_o` и `OP_WAIT` логиката като multi-line блок | Доказва scheduler behavior |
+| След caption `Фрагмент 2.6` | `rtl/execution_controller.sv` | Да се добави/провери command classification фрагментът | Доказва digital command interface |
+| След caption `Фрагмент 2.7` | `rtl/measurement_controller.sv` | Да се добави реалният pending/result code block, ако липсва | В прегледаната Word версия caption-ът присъства, но кодът може да липсва |
+| След caption `Фрагмент 2.8` | `rtl/feedback_unit.sv` | Да се добави реалният conditional/unconditional branch code block, ако липсва | В прегледаната Word версия caption-ът присъства, но кодът може да липсва |
+| След caption `Фрагмент 2.9` | `rtl/quantum_controller_top.sv` | Да се форматира top-level protection code като multi-line блок | Доказва queue flush, measurement backpressure и branch blocking |
+| След `Фрагмент 2.9` или като `Фрагмент 2.10` | `rtl/quantum_controller_top.sv` | Да се добави branch in-flight register code block | Доказва, че BRANCH остава in-flight до feedback decision |
+| След Yosys flow описанието | `scripts/synth_quantum_controller_top.ys` | Да се форматира Yosys script-ът като multi-line блок | В Word изглежда слят като един ред |
+
+## 2.11.3 Допълнителен фрагмент за Execution Controller
+
+В текущия основен текст на Markdown раздел `2.5.6` execution controller-ът е описан подробно, но при финалното Word оформяне е полезно да се включи и кратък реален кодов фрагмент. Той трябва да бъде поставен след текста, който обяснява цифровия command интерфейс.
+
+Caption:
+
+```text
+Фрагмент 2.6. Класификация на issued операцията в цифров command интерфейс
+```
+
+Source:
+
+```text
+rtl/execution_controller.sv
+```
+
+Код:
+
+```systemverilog
+if (issue_valid_i && issue_ready_o) begin
+    unique case (issue_instr_i.opcode)
+        OP_NOP: begin
+            command_valid_o <= 1'b0;
+            command_instr_o <= issue_instr_i;
+            nop_cmd_o       <= 1'b1;
+        end
+
+        OP_H,
+        OP_X,
+        OP_Z,
+        OP_CNOT: begin
+            command_valid_o <= 1'b1;
+            command_instr_o <= issue_instr_i;
+            gate_cmd_o      <= 1'b1;
+        end
+
+        OP_MEASURE: begin
+            command_valid_o <= 1'b1;
+            command_instr_o <= issue_instr_i;
+            measure_cmd_o   <= 1'b1;
+        end
+
+        OP_WAIT: begin
+            command_valid_o <= 1'b1;
+            command_instr_o <= issue_instr_i;
+            wait_cmd_o      <= 1'b1;
+        end
+
+        OP_RESET: begin
+            command_valid_o <= 1'b1;
+            command_instr_o <= issue_instr_i;
+            reset_cmd_o     <= 1'b1;
+        end
+
+        OP_BRANCH: begin
+            command_valid_o <= 1'b1;
+            command_instr_o <= issue_instr_i;
+            branch_cmd_o    <= 1'b1;
+        end
+
+        default: begin
+            command_valid_o <= 1'b0;
+            command_instr_o <= issue_instr_i;
+            illegal_issue_o <= 1'b1;
+        end
+    endcase
+end
+```
+
+Обяснение за Word текста:
+
+```text
+Фрагментът показва, че execution controller-ът не генерира физически импулси, а класифицира issued инструкцията като цифров command тип. Така gate, measurement, wait, reset и branch операциите се отделят към съответните downstream блокове, без да се смесва instruction scheduling логиката с физическо pulse-level управление.
+```
+
+## 2.11.4 Фрагмент за Measurement Controller, който трябва да присъства във Word
+
+Caption:
+
+```text
+Фрагмент 2.7. Measurement pending състояние и запис на резултата
+```
+
+Source:
+
+```text
+rtl/measurement_controller.sv
+```
+
+Код:
+
+```systemverilog
+assign command_ready_o    = !pending_q;
+assign measurement_busy_o = pending_q;
+
+if (command_valid_i && command_ready_o) begin
+    if (command_instr_i.opcode == OP_MEASURE) begin
+        pending_q               <= 1'b1;
+        pending_qubit_q         <= command_instr_i.target_qubit;
+        measure_request_valid_o <= 1'b1;
+        measure_qubit_o         <= command_instr_i.target_qubit;
+    end
+end
+
+if (measurement_result_valid_i) begin
+    if (pending_q) begin
+        pending_q <= 1'b0;
+        measurement_valid_o[pending_qubit_q]   <= 1'b1;
+        measurement_results_o[pending_qubit_q] <= measurement_result_i;
+    end else begin
+        unexpected_result_o <= 1'b1;
+    end
+end
+```
+
+Обяснение за Word текста:
+
+```text
+Фрагментът показва как measurement controller-ът свързва заявката за измерване с по-късно пристигащ класически резултат. `pending_q` пази факта, че има незавършено измерване, `pending_qubit_q` пази кубита, а при пристигане на резултат се обновяват `measurement_valid_o` и `measurement_results_o`. Ако резултат пристигне без pending заявка, се активира `unexpected_result_o`.
+```
+
+## 2.11.5 Фрагмент за Feedback Unit, който трябва да присъства във Word
+
+Caption:
+
+```text
+Фрагмент 2.8. Conditional и unconditional branch решение във feedback unit-а
+```
+
+Source:
+
+```text
+rtl/feedback_unit.sv
+```
+
+Код:
+
+```systemverilog
+assign conditional_branch = command_instr_i.flags[FLAG_CONDITIONAL_BIT] |
+                            command_instr_i.flags[FLAG_FEEDBACK_BIT];
+assign expected_value     = command_instr_i.flags[FLAG_EXPECTED_BIT];
+
+if (command_valid_i && branch_cmd_i &&
+    command_instr_i.opcode == OP_BRANCH &&
+    command_instr_i.flags[FLAG_VALID_BIT]) begin
+
+    feedback_valid_o <= 1'b1;
+    branch_target_o  <= command_instr_i.duration;
+
+    if (conditional_branch) begin
+        if (selected_valid) begin
+            condition_checked_o <= 1'b1;
+            feedback_value_o    <= selected_result;
+            branch_taken_o      <= (selected_result == expected_value);
+        end else begin
+            missing_measurement_o <= 1'b1;
+            branch_taken_o        <= 1'b0;
+        end
+    end else begin
+        branch_taken_o <= 1'b1;
+    end
+end
+```
+
+Обяснение за Word текста:
+
+```text
+Фрагментът доказва как feedback unit-ът различава условен и безусловен branch. При условен branch решението зависи от наличен measurement резултат и от очакваната стойност във flags полето. При липсващ резултат branch не се взема и се активира `missing_measurement_o`; при безусловен branch `branch_taken_o` се активира директно.
+```
+
+## 2.11.6 Допълнителен фрагмент за branch in-flight състояние
+
+В Word версията е полезно да се добави отделен кратък фрагмент за `branch_inflight_q`, защото той обяснява защо top-level контролерът не допуска нов branch преди предходното feedback решение да приключи.
+
+Caption:
+
+```text
+Фрагмент 2.10. Branch in-flight регистрово състояние в top-level модула
+```
+
+Source:
+
+```text
+rtl/quantum_controller_top.sv
+```
+
+Код:
+
+```systemverilog
+if (feedback_valid_o) begin
+    branch_inflight_q <= 1'b0;
+end
+
+if (sched_issue_valid && (sched_issue_instr.opcode == OP_BRANCH)) begin
+    branch_inflight_q <= 1'b1;
+end
+```
+
+Обяснение за Word текста:
+
+```text
+Този регистър моделира факта, че branch операцията остава активна до получаване на feedback decision. Докато `branch_inflight_q` е активен, top-level backpressure логиката блокира издаването на нов branch. Това предотвратява припокриване на branch решения в текущия in-order pipeline.
+```
+
+Ако този фрагмент се добави като `Фрагмент 2.10`, тогава Yosys script фрагментът в раздел `2.9.4` трябва да стане `Фрагмент 2.11`.
+
+## 2.11.7 Форматиране на Yosys script фрагмента
+
+В Word версията Yosys script-ът трябва да бъде форматиран като multi-line блок, защото в слят едноредов вид не показва реалната последователност на flow-а.
+
+Caption:
+
+```text
+Фрагмент 2.11. Основна последователност от команди в Yosys synthesis script-а
+```
+
+Source:
+
+```text
+scripts/synth_quantum_controller_top.ys
+```
+
+Код:
+
+```tcl
+read_verilog -sv rtl_synth/quantum_controller_top_synth.sv
+
+hierarchy -check -top quantum_controller_top_synth
+
+proc
+opt
+fsm
+opt
+memory
+opt
+techmap
+opt
+
+stat
+
+write_json results/synthesis_reports/quantum_controller_top_synth.json
+```
+
+Обяснение за Word текста:
+
+```text
+Фрагментът показва, че текущият synthesis flow извършва базово четене на synthesis-friendly SystemVerilog top, hierarchy проверка, process lowering, оптимизации, FSM обработка, memory обработка, technology mapping, статистика и извеждане на JSON netlist. Това е smoke-test synthesis flow, а не пълен timing sign-off.
+```
+
+## 2.11.8 Проверка след обновяване на Word версията
+
+След като Word документът бъде обновен от този Markdown, трябва да се провери следното:
+
+| Проверка | Очакван резултат |
+|---|---|
+| Всеки caption `Фрагмент 2.x` има реален кодов блок след себе си | Да |
+| Кодът не е слят в един ред | Да |
+| Фрагментите имат source file препратка | Да |
+| `measurement_controller.sv` фрагментът присъства | Да |
+| `feedback_unit.sv` фрагментът присъства | Да |
+| `branch_inflight_q` фрагментът присъства или е обяснен в top-level фрагмента | Да |
+| Yosys script-ът е multi-line | Да |
+| Текстът не твърди директен Yosys синтез на основния `rtl/` код | Да |
+| Ограниченията на RTL реализацията остават ясно описани | Да |
+
+Ако тези проверки са изпълнени, Глава 2 ще бъде значително по-добре защитена като дисертационен текст, защото всяко важно архитектурно твърдение ще има не само словесно обяснение, но и кратко реално доказателство от кода.

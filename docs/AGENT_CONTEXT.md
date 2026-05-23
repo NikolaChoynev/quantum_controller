@@ -358,6 +358,14 @@ f9ecbdc Update dissertation Chapter 2
 
 Важно за бъдещ агент: при финална редакция трябва да се провери дали `.docx` версията съдържа всички нужни реални кодови фрагменти и traceability елементи от `docs/chapter_2_rtl_architecture.md`. Markdown файлът остава най-подробният технически източник за Глава 2.
 
+След преглед на текущата `docs/Дисертация.docx` версия е добавен нов раздел в `docs/chapter_2_rtl_architecture.md`:
+
+```text
+2.11 Редакторска карта за допълване на Word версията на Глава 2
+```
+
+Този раздел е предназначен за агента/бота, който прехвърля Markdown съдържанието към Word. Той указва, че част от code fragments в `.docx` са били сляти в едноредов текст или може да липсват след caption-ите, особено около `measurement_controller.sv`, `feedback_unit.sv`, `branch_inflight_q` и Yosys script-а. При следващо обновяване на Word версията този раздел трябва да се използва като checklist за правилно вмъкване на multi-line code blocks.
+
 Започната е Phase C от работния план: UVM базирана верификационна среда за Глава 3.
 
 Новият работен Markdown източник за Глава 3 е:
@@ -387,9 +395,11 @@ uvm/qc_uvm_pkg.sv
 uvm/qc_sequence_item.sv
 uvm/qc_sequencer.sv
 uvm/qc_sequences.sv
+uvm/qc_if.sv
+uvm/qc_driver.sv
 ```
 
-`uvm/qc_uvm_pkg.sv` импортира `uvm_pkg`, включва `uvm_macros.svh`, импортира `qc_pkg` и включва `qc_sequence_item.sv`, `qc_sequencer.sv` и `qc_sequences.sv`.
+`uvm/qc_uvm_pkg.sv` импортира `uvm_pkg`, включва `uvm_macros.svh`, импортира `qc_pkg` и включва `qc_sequence_item.sv`, `qc_sequencer.sv`, `qc_sequences.sv` и `qc_driver.sv`. `uvm/qc_if.sv` не е include-нат в package-а, защото е SystemVerilog interface/design element и трябва да се компилира отделно преди UVM package-а.
 
 `uvm/qc_sequence_item.sv` реализира `qc_sequence_item extends uvm_sequence_item`. Той използва реалните RTL параметри и типове от `rtl/qc_pkg.sv`: `qc_opcode_e`, `INSTR_W`, `QUBIT_ID_W`, `DURATION_W`, `FLAGS_W`, `RESERVED_W` и flag bit константите. Transaction item-ът съдържа opcode, target/control qubit, duration, flags, reserved, valid/invalid controls, raw override support и measurement response metadata. Добавени са helper функции `pack_raw()`, `update_raw()`, `load_raw()`, `to_fields()` и classification helpers за gate/measurement/branch инструкции.
 
@@ -402,13 +412,15 @@ uvm/qc_sequences.sv
 - random/stress sequences: `qc_random_instruction_sequence`, `qc_dependency_stress_sequence`;
 - algorithmic workload sequences: `qc_algorithmic_bell_sequence`, `qc_algorithmic_ghz_sequence`, `qc_algorithmic_grover_like_sequence`.
 
-Важно: тези sequence класове все още не са изпълнявани срещу DUT, защото driver, virtual interface, agent/env и UVM top-level testbench още не са реализирани.
+`uvm/qc_if.sv` реализира SystemVerilog interface за DUT сигналите на `rtl/quantum_controller_top.sv`. Той съдържа `drv_cb` clocking block за driver-а, `mon_cb` clocking block за бъдещ monitor и `dut` modport за бъдещия top-level testbench.
+
+`uvm/qc_driver.sv` реализира `qc_driver extends uvm_driver #(qc_sequence_item)`. Driver-ът взема `virtual qc_if` чрез `uvm_config_db`, инициализира bus/reset сигналите, получава `qc_sequence_item` от sequencer-а, подава `instr_i/instr_valid_i`, изчаква `instr_ready_o`, и при measurement item използва `send_measurement_result`, `measurement_result_value` и `measurement_latency_cycles`, за да подаде `measurement_result_valid_i/measurement_result_i`.
+
+Важно: UVM компонентите все още не са изпълнявани срещу DUT като пълна UVM симулация, защото monitor, scoreboard, coverage, agent/env, UVM top-level testbench и run script още не са реализирани. Няма и потвърден UVM-capable simulator flow.
 
 Още не са реализирани:
 
 ```text
-uvm/qc_if.sv
-uvm/qc_driver.sv
 uvm/qc_monitor.sv
 uvm/qc_scoreboard.sv
 uvm/qc_coverage.sv
@@ -421,14 +433,35 @@ scripts/run_uvm.sh
 
 Наличният локален simulator flow към момента е Verilator за non-UVM RTL testbench-и. `vlog/vsim`, `xrun` и `vcs` не са намерени в PATH при последната проверка. Затова новият UVM код все още не е стартиран като UVM симулация и не трябва да се твърди, че има UVM logs/waveforms/coverage резултати.
 
-Следващата непосредствена задача е Phase C3:
+Следващата непосредствена задача е Phase C4:
 
 ```text
-uvm/qc_if.sv
-uvm/qc_driver.sv
+uvm/qc_monitor.sv
 ```
 
-Целта е driver-ът да получава `qc_sequence_item` от sequencer-а, да изчаква `instr_ready_o`, да подава `instr_i/instr_valid_i`, и при measurement item да използва `send_measurement_result`, `measurement_result_value` и `measurement_latency_cycles`, за да подаде feedback резултат към DUT.
+Целта е monitor-ът да използва `virtual qc_if` и `mon_cb`, да наблюдава instruction handshake, command/issue outputs, measurement/feedback/status сигналите и да публикува наблюдения чрез analysis ports към бъдещи scoreboard и coverage компоненти.
+
+След Phase C4 трябва да се продължи с:
+
+```text
+uvm/qc_scoreboard.sv
+uvm/qc_coverage.sv
+uvm/qc_agent.sv
+uvm/qc_env.sv
+uvm/qc_base_test.sv
+uvm/tb_qc_uvm_top.sv
+scripts/run_uvm.sh
+```
+
+Глава 3 може да се счита за готова за финално академично писане само когато има не само UVM код, но и реални simulation artifacts. `docs/chapter_3_uvm_verification.md` вече съдържа раздел `3.12 Definition of Done за UVM фазата`. Бъдещ агент трябва да го следва.
+
+В бъдещия Markdown трябва да има реална regression таблица с формат:
+
+```text
+UVM test | Sequence | Status | Seed | Log | Waveform/Coverage | Какво проверява
+```
+
+`PASS` не трябва да се записва без реално изпълнена UVM симулация с UVM-capable simulator. Ако няма такъв simulator, статусът трябва да остане `TBD`, `NOT RUN` или ясно описано ограничение.
 
 След всяка UVM стъпка трябва да се обновяват `docs/chapter_3_uvm_verification.md` и, ако има стабилна нова информация за бъдещ агент, този `docs/AGENT_CONTEXT.md`.
 

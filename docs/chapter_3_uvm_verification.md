@@ -13,16 +13,18 @@
 → едва след това се описва като завършен резултат във финалната дисертация
 ```
 
-Към текущия момент е започната Phase C от работния план. Реализирана е началната UVM инфраструктура за transaction/sequence item и stimulus generation слой:
+Към текущия момент е започната Phase C от работния план. Реализирана е началната UVM инфраструктура за transaction/sequence item, stimulus generation и driver/interface слой:
 
 ```text
 uvm/qc_uvm_pkg.sv
 uvm/qc_sequence_item.sv
 uvm/qc_sequencer.sv
 uvm/qc_sequences.sv
+uvm/qc_if.sv
+uvm/qc_driver.sv
 ```
 
-Все още не са реализирани driver, monitor, scoreboard, coverage collector, UVM agent/environment, UVM tests или UVM top-level testbench. Sequencer-ът и sequence класовете вече съществуват като UVM код, но все още не са изпълнявани срещу DUT, защото няма driver/interface/env слой.
+Все още не са реализирани monitor, scoreboard, coverage collector, UVM agent/environment, UVM tests или UVM top-level testbench. Sequencer-ът, sequence класовете, virtual interface-ът и driver-ът вече съществуват като UVM код, но все още не са изпълнявани срещу DUT като пълна UVM симулация, защото липсват agent/env/test top и UVM-capable simulator flow.
 
 ---
 
@@ -32,11 +34,11 @@ uvm/qc_sequences.sv
 
 | № | Изисквана информация | Текущ статус | Къде се попълва |
 |---:|---|---|---|
-| 1 | Каква UVM среда е реализирана | Започната е UVM среда; налични са package, transaction item, sequencer и sequence classes | Раздели 3.2, 3.4 и 3.5 |
-| 2 | Кои файлове са създадени в `uvm/` | Създадени са `qc_uvm_pkg.sv`, `qc_sequence_item.sv`, `qc_sequencer.sv` и `qc_sequences.sv` | Раздел 3.2 |
-| 3 | Как DUT е свързан към testbench-а | Все още не е реализирано; описан е планираният интерфейс към `quantum_controller_top` | Раздел 3.3 |
+| 1 | Каква UVM среда е реализирана | Започната е UVM среда; налични са package, transaction item, sequencer, sequences, interface и driver | Раздели 3.2, 3.4 и 3.5 |
+| 2 | Кои файлове са създадени в `uvm/` | Създадени са `qc_uvm_pkg.sv`, `qc_sequence_item.sv`, `qc_sequencer.sv`, `qc_sequences.sv`, `qc_if.sv` и `qc_driver.sv` | Раздел 3.2 |
+| 3 | Как DUT е свързан към testbench-а | Частично реализирано чрез `qc_if.sv`; top-level UVM testbench още предстои | Раздел 3.3 |
 | 4 | Какво съдържа transaction/sequence item | Реализирано в `uvm/qc_sequence_item.sv` | Раздел 3.4 |
-| 5 | Как работят sequencer, driver, monitor, scoreboard и coverage | Sequencer и sequences са реализирани; driver/monitor/scoreboard/coverage предстоят | Раздел 3.5 |
+| 5 | Как работят sequencer, driver, monitor, scoreboard и coverage | Sequencer, sequences и driver са реализирани; monitor/scoreboard/coverage предстоят | Раздел 3.5 |
 | 6 | Какви directed tests са реализирани | Има directed sequence класове; executable UVM tests още няма | Раздел 3.6.1 |
 | 7 | Какви constrained-random/stress tests са реализирани | Има random и dependency stress sequence класове; още не са изпълнявани | Раздел 3.6.2 |
 | 8 | Какви algorithmic workloads са реализирани | Има Bell, GHZ и Grover-like sequence класове; още не са изпълнявани | Раздел 3.6.3 |
@@ -66,7 +68,7 @@ UVM средата трябва да работи върху основната 
 4. Scoreboard-ът сравнява очакваното поведение с наблюдаваните DUT изходи.
 5. Coverage collector-ът отчита opcode покритие, flag комбинации, dependency/stall сценарии, measurement-feedback сценарии, branch taken/not-taken сценарии и queue/backpressure състояния.
 
-Към момента тази методология е заложена в плана, като реално имплементирани са transaction/sequence item слой, sequencer и начални sequence класове. Следващият липсващ слой е driver/interface, който трябва да свърже sequence stream-а към реалните DUT сигнали.
+Към момента тази методология е заложена в плана, като реално имплементирани са transaction/sequence item слой, sequencer, начални sequence класове, virtual interface и driver. Следващият липсващ слой е monitor/scoreboard/coverage и UVM agent/environment, които трябва да превърнат stimulus потока в наблюдаема и проверима UVM среда.
 
 ---
 
@@ -80,11 +82,12 @@ UVM средата трябва да работи върху основната 
 | `uvm/qc_sequence_item.sv` | Реализиран | Transaction/sequence item за генериране на instruction-level stimulus |
 | `uvm/qc_sequencer.sv` | Реализиран | Типизиран UVM sequencer за `qc_sequence_item` |
 | `uvm/qc_sequences.sv` | Реализиран | Directed, random, stress и algorithmic sequence класове |
+| `uvm/qc_if.sv` | Реализиран | SystemVerilog interface за DUT сигналите, driver/monitor clocking blocks и DUT modport |
+| `uvm/qc_driver.sv` | Реализиран | UVM driver, който управлява instruction ready/valid интерфейса и measurement response входа |
 
 Все още не са създадени:
 
 ```text
-uvm/qc_driver.sv
 uvm/qc_monitor.sv
 uvm/qc_scoreboard.sv
 uvm/qc_coverage.sv
@@ -113,17 +116,18 @@ package qc_uvm_pkg;
     `include "qc_sequence_item.sv"
     `include "qc_sequencer.sv"
     `include "qc_sequences.sv"
+    `include "qc_driver.sv"
 
 endpackage : qc_uvm_pkg
 ```
 
-Тази структура означава, че UVM класовете не дефинират собствен instruction format. Вместо това те използват същите параметри, opcode enum-и и field width дефиниции от `rtl/qc_pkg.sv`, които се използват и от DUT.
+Тази структура означава, че UVM класовете не дефинират собствен instruction format. Вместо това те използват същите параметри, opcode enum-и и field width дефиниции от `rtl/qc_pkg.sv`, които се използват и от DUT. Файлът `uvm/qc_if.sv` не е include-нат в package-а, защото SystemVerilog interface е design element и трябва да се компилира отделно преди `uvm/qc_uvm_pkg.sv`.
 
 ---
 
-# 3.3 DUT интерфейс и планирано свързване към UVM testbench
+# 3.3 DUT интерфейс и свързване към UVM testbench
 
-Свързването на DUT към UVM testbench все още не е реализирано. Въпреки това интерфейсът, който трябва да бъде управляван и наблюдаван, вече е ясен от `rtl/quantum_controller_top.sv`.
+Част от свързването на DUT към UVM testbench вече е реализирана чрез `uvm/qc_if.sv`. Този SystemVerilog interface описва сигналите на `rtl/quantum_controller_top.sv`, предоставя clocking block за driver-а, clocking block за бъдещ monitor и `dut` modport за бъдещия top-level UVM testbench.
 
 Основните входове за stimulus са:
 
@@ -189,7 +193,7 @@ input  logic                    measurement_result_valid_i,
 input  logic                    measurement_result_i,
 ```
 
-Бъдещият UVM driver трябва да подава `instr_i` само когато sequence item е наличен и DUT приема инструкция чрез `instr_ready_o`. За measurement сценарии UVM средата трябва да подава `measurement_result_valid_i` и `measurement_result_i` след като DUT генерира `measure_request_valid_o`.
+Реализираният UVM driver подава `instr_i` само когато sequence item е наличен и DUT приема инструкция чрез `instr_ready_o`. За measurement сценарии driver-ът използва metadata от `qc_sequence_item`, изчаква `measure_request_valid_o` и след зададен latency подава `measurement_result_valid_i` и `measurement_result_i`.
 
 Планираното UVM свързване е:
 
@@ -203,7 +207,76 @@ qc_sequence_item
 → scoreboard + coverage
 ```
 
-Този слой ще бъде реализиран в следващите стъпки чрез SystemVerilog interface и UVM agent/env компоненти.
+SystemVerilog interface-ът и driver-ът вече са реализирани. Следващата стъпка е UVM agent/env слой, който да свърже driver-а със sequencer-а, monitor-а, scoreboard-а и coverage collector-а.
+
+## Кодов фрагмент 3.3 – Основни DUT сигнали в `qc_if.sv`
+
+Файлът `uvm/qc_if.sv` създава обща UVM видимост към входните и изходните DUT сигнали.
+
+```systemverilog
+interface qc_if #(
+    parameter int QUEUE_DEPTH = 4,
+    parameter int NUM_QUBITS  = qc_pkg::MAX_QUBITS
+) (
+    input logic clk_i
+);
+
+    import qc_pkg::*;
+
+    logic                    rst_ni;
+    logic [INSTR_W-1:0]      instr_i;
+    logic                    instr_valid_i;
+    logic                    instr_ready_o;
+
+    logic                    measurement_result_valid_i;
+    logic                    measurement_result_i;
+
+    logic                    command_valid_o;
+    qc_opcode_e              command_opcode_o;
+    logic [QUBIT_ID_W-1:0]   command_target_qubit_o;
+    logic [DURATION_W-1:0]   command_duration_o;
+```
+
+Тук са показани само част от сигналите. Реалният interface съдържа и issue, command classification, measurement, feedback, status и debug сигналите.
+
+## Кодов фрагмент 3.4 – Driver и monitor clocking blocks
+
+`qc_if.sv` разделя driver достъпа и monitor достъпа чрез отделни clocking blocks.
+
+```systemverilog
+clocking drv_cb @(posedge clk_i);
+    default input #1step output #1ns;
+
+    output rst_ni;
+    output instr_i;
+    output instr_valid_i;
+    output measurement_result_valid_i;
+    output measurement_result_i;
+
+    input  instr_ready_o;
+    input  measure_request_valid_o;
+    input  measure_qubit_o;
+    input  measurement_busy_o;
+    input  feedback_valid_o;
+    input  branch_taken_o;
+endclocking
+
+clocking mon_cb @(posedge clk_i);
+    default input #1step output #1ns;
+
+    input rst_ni;
+    input instr_i;
+    input instr_valid_i;
+    input instr_ready_o;
+    input command_valid_o;
+    input command_opcode_o;
+    input measure_request_valid_o;
+    input feedback_valid_o;
+    input branch_taken_o;
+endclocking
+```
+
+Това подготвя интерфейса за active driver и passive monitor, без monitor-ът да управлява DUT входове.
 
 ---
 
@@ -230,7 +303,7 @@ Transaction item-ът съдържа:
 | `measurement_latency_cycles` | `int unsigned` | Закъснение преди подаване на measurement result |
 | `raw_instr` | `logic [INSTR_W-1:0]` | Пакетирана 32-битова инструкция |
 
-## Кодов фрагмент 3.3 – Основни полета на transaction item-а
+## Кодов фрагмент 3.5 – Основни полета на transaction item-а
 
 От `uvm/qc_sequence_item.sv`:
 
@@ -267,7 +340,7 @@ class qc_sequence_item extends uvm_sequence_item;
 [3:0]   reserved
 ```
 
-## Кодов фрагмент 3.4 – Constraints за валидни инструкции
+## Кодов фрагмент 3.6 – Constraints за валидни инструкции
 
 Transaction item-ът има constraints, които по подразбиране генерират валидни инструкции и избягват invalid opcode стойности, освен ако тестът изрично не поиска такъв сценарий.
 
@@ -305,7 +378,7 @@ constraint wait_duration_c {
 
 Това е важно за constrained-random тестовете, защото нормалната random генерация не трябва постоянно да създава невалидни инструкции. Invalid сценарии все пак са възможни чрез `allow_invalid_opcode` или чрез `raw_override_en`.
 
-## Кодов фрагмент 3.5 – Пакетиране към реалната 32-битова инструкция
+## Кодов фрагмент 3.7 – Пакетиране към реалната 32-битова инструкция
 
 Класът съдържа функция `pack_raw()`, която превръща transaction полетата в реалната 32-битова инструкция, подавана към DUT.
 
@@ -332,7 +405,7 @@ endfunction
 
 Това осигурява пряка връзка между UVM transaction слоя и RTL decoder-а. Driver-ът в следваща стъпка трябва да използва `item.pack_raw()` или `item.raw_instr`, за да подаде `instr_i` към DUT.
 
-## Кодов фрагмент 3.6 – Поддръжка на raw directed инструкции
+## Кодов фрагмент 3.8 – Поддръжка на raw directed инструкции
 
 За тестове на illegal opcode, malformed instruction или конкретни regression случаи е добавена функция `load_raw()`.
 
@@ -357,7 +430,7 @@ endfunction
 
 Тази функция е полезна за directed tests, при които трябва да се подаде точно определена 32-битова дума, например същите инструкции, които вече се използват в Verilator testbench-ите.
 
-## Кодов фрагмент 3.7 – Measurement response metadata
+## Кодов фрагмент 3.9 – Measurement response metadata
 
 Понеже DUT има отделен measurement feedback вход, transaction item-ът съдържа metadata за measurement result подаване.
 
@@ -373,13 +446,13 @@ constraint measurement_response_c {
 }
 ```
 
-Това не означава, че measurement responder вече е реализиран. То означава, че sequence item-ът вече носи достатъчно информация, за да може следващият driver/responder слой да подаде measurement result след заявка от DUT.
+Тази metadata вече се използва от `uvm/qc_driver.sv`. Driver-ът изчаква `measure_request_valid_o` и след `measurement_latency_cycles` подава `measurement_result_valid_i` и `measurement_result_i` към DUT.
 
 ---
 
 # 3.5 UVM компоненти за stimulus generation и планирани следващи блокове
 
-Този раздел описва реализираните stimulus generation компоненти и следващите планирани UVM блокове. Към момента sequencer-ът и sequence класовете са реализирани, но driver, monitor, scoreboard, coverage, agent, environment и executable UVM tests все още предстоят.
+Този раздел описва реализираните stimulus generation и driver компоненти, както и следващите планирани UVM блокове. Към момента sequencer-ът, sequence класовете, virtual interface-ът и driver-ът са реализирани, но monitor, scoreboard, coverage, agent, environment и executable UVM tests все още предстоят.
 
 ## 3.5.1 Sequencer
 
@@ -389,9 +462,9 @@ constraint measurement_response_c {
 uvm/qc_sequencer.sv
 ```
 
-Sequencer-ът е типизиран върху `qc_sequence_item` и предоставя transaction stream към бъдещия driver. Неговата роля е стандартна за UVM active agent: да приема directed или constrained-random sequences и да ги подава към driver-а чрез `seq_item_port`.
+Sequencer-ът е типизиран върху `qc_sequence_item` и предоставя transaction stream към driver-а. Неговата роля е стандартна за UVM active agent: да приема directed или constrained-random sequences и да ги подава към driver-а чрез `seq_item_port`.
 
-## Кодов фрагмент 3.8 – Типизиран UVM sequencer
+## Кодов фрагмент 3.10 – Типизиран UVM sequencer
 
 От `uvm/qc_sequencer.sv`:
 
@@ -433,7 +506,7 @@ uvm/qc_sequences.sv
 | `qc_algorithmic_ghz_sequence` | Реализиран | GHZ workload |
 | `qc_algorithmic_grover_like_sequence` | Реализиран | Grover-like workload |
 
-## Кодов фрагмент 3.9 – Helper функция за flags
+## Кодов фрагмент 3.11 – Helper функция за flags
 
 Базовият sequence клас съдържа функция `make_flags()`, която кодира valid, conditional, feedback и expected битовете със същите bit позиции като RTL package-а.
 
@@ -458,9 +531,9 @@ endfunction
 
 Така UVM stimulus-ът не използва магически стойности за branch флаговете, а се опира на същите константи, които управляват `instruction_decoder.sv` и `feedback_unit.sv`.
 
-## Кодов фрагмент 3.10 – Structured instruction stimulus
+## Кодов фрагмент 3.12 – Structured instruction stimulus
 
-Функцията `send_instruction()` създава `qc_sequence_item`, попълва полетата му и обновява `raw_instr`. Бъдещият driver ще получава точно тези item-и през sequencer-а.
+Функцията `send_instruction()` създава `qc_sequence_item`, попълва полетата му и обновява `raw_instr`. Реализираният driver получава точно тези item-и през sequencer-а.
 
 ```systemverilog
 virtual task send_instruction(
@@ -498,7 +571,7 @@ virtual task send_instruction(
 endtask
 ```
 
-## Кодов фрагмент 3.11 – Smoke sequence
+## Кодов фрагмент 3.13 – Smoke sequence
 
 `qc_smoke_sequence` е минимален end-to-end stimulus шаблон: gate операция, measurement операция и conditional feedback branch.
 
@@ -512,7 +585,7 @@ endtask
 
 Този sequence е полезен за първия бъдещ UVM smoke test, защото преминава през gate path, measurement path и feedback path.
 
-## Кодов фрагмент 3.12 – Constrained-random instruction stream
+## Кодов фрагмент 3.14 – Constrained-random instruction stream
 
 `qc_random_instruction_sequence` използва constraints от `qc_sequence_item`, за да генерира валидни инструкции без raw override и без invalid opcode injection.
 
@@ -534,7 +607,7 @@ end
 
 Този sequence е основата за бъдещи random regression тестове. След добавяне на driver/monitor/scoreboard той ще може да проверява по-дълги валидни instruction streams.
 
-## Кодов фрагмент 3.13 – Algorithmic Bell workload
+## Кодов фрагмент 3.15 – Algorithmic Bell workload
 
 `qc_algorithmic_bell_sequence` показва как алгоритмично мотивиран workload се представя чрез същия instruction-level API.
 
@@ -551,21 +624,110 @@ endtask
 
 ## 3.5.3 Driver
 
-Планиран файл:
+Реализиран файл:
 
 ```text
 uvm/qc_driver.sv
 ```
 
-Driver-ът трябва да:
+Driver-ът вече:
 
 1. Извлича `qc_sequence_item` от sequencer-а.
 2. Изчаква `instr_ready_o`.
 3. Подава `instr_i = item.pack_raw()`.
-4. Активира `instr_valid_i` за един или повече clock cycles според ready/valid протокола.
-5. При measurement transaction да изчака `measure_request_valid_o`, след което да подаде `measurement_result_valid_i` и `measurement_result_i` след `measurement_latency_cycles`.
+4. Активира `instr_valid_i` според ready/valid протокола.
+5. При measurement transaction изчаква `measure_request_valid_o`, след което подава `measurement_result_valid_i` и `measurement_result_i` след `measurement_latency_cycles`.
 
-Това поведение все още не е реализирано.
+Driver-ът получава virtual interface чрез `uvm_config_db`. Това означава, че бъдещите `qc_agent`, `qc_env` и `tb_qc_uvm_top` трябва да зададат `vif` към `qc_driver` преди стартиране на теста.
+
+## Кодов фрагмент 3.16 – Driver build/run phase
+
+От `uvm/qc_driver.sv`:
+
+```systemverilog
+class qc_driver extends uvm_driver #(qc_sequence_item);
+
+    virtual qc_if vif;
+
+    `uvm_component_utils(qc_driver)
+
+    function void build_phase(uvm_phase phase);
+        super.build_phase(phase);
+
+        if (!uvm_config_db #(virtual qc_if)::get(this, "", "vif", vif)) begin
+            `uvm_fatal(get_type_name(), "Virtual interface 'vif' was not provided")
+        end
+    endfunction
+
+    task run_phase(uvm_phase phase);
+        qc_sequence_item item;
+
+        initialize_bus();
+        wait_for_reset_release();
+
+        forever begin
+            seq_item_port.get_next_item(item);
+            drive_item(item);
+            seq_item_port.item_done();
+        end
+    endtask
+```
+
+Този код превръща sequence item stream-а в реално driver поведение, но все още изисква agent/env/top слой, за да бъде изпълнен срещу DUT.
+
+## Кодов фрагмент 3.17 – Ready/valid instruction drive
+
+Driver-ът пакетира instruction transaction-а и го държи валиден, докато DUT вдигне `instr_ready_o`.
+
+```systemverilog
+task drive_instruction(qc_sequence_item item);
+    logic [INSTR_W-1:0] raw_instr;
+
+    raw_instr = item.pack_raw();
+
+    vif.drv_cb.instr_i       <= raw_instr;
+    vif.drv_cb.instr_valid_i <= 1'b1;
+
+    do begin
+        @(vif.drv_cb);
+    end while (vif.drv_cb.instr_ready_o !== 1'b1);
+
+    vif.drv_cb.instr_valid_i <= 1'b0;
+    vif.drv_cb.instr_i       <= '0;
+endtask
+```
+
+Това е първата реална връзка между sequence item модела и входния DUT интерфейс.
+
+## Кодов фрагмент 3.18 – Measurement response handling
+
+За measurement sequence item-и driver-ът изчаква measurement request и подава резултат след зададен latency.
+
+```systemverilog
+task drive_measurement_response(qc_sequence_item item);
+    bit request_seen;
+
+    wait_for_measurement_request(item, request_seen);
+
+    if (!request_seen) begin
+        return;
+    end
+
+    repeat (item.measurement_latency_cycles) begin
+        @(vif.drv_cb);
+    end
+
+    vif.drv_cb.measurement_result_i       <= item.measurement_result_value;
+    vif.drv_cb.measurement_result_valid_i <= 1'b1;
+
+    @(vif.drv_cb);
+
+    vif.drv_cb.measurement_result_valid_i <= 1'b0;
+    vif.drv_cb.measurement_result_i       <= 1'b0;
+endtask
+```
+
+Тази логика използва `send_measurement_result`, `measurement_result_value` и `measurement_latency_cycles` от `qc_sequence_item`.
 
 ## 3.5.4 Monitor
 
@@ -640,7 +802,7 @@ Coverage моделът трябва да измерва не само opcode п
 
 ## 3.6.1 Directed tests
 
-Все още няма executable UVM directed tests, защото липсват driver, UVM environment и test top. Вече има реализирани directed sequence класове в `uvm/qc_sequences.sv`, които ще бъдат използвани от бъдещите UVM tests.
+Все още няма executable UVM directed tests, защото липсват UVM environment, test top и run script. Вече има реализирани directed sequence класове в `uvm/qc_sequences.sv` и driver в `uvm/qc_driver.sv`, които ще бъдат използвани от бъдещите UVM tests.
 
 Като functional baseline съществуват Verilator testbench-и в `tb/`, включително:
 
@@ -747,6 +909,7 @@ scripts/run_uvm.sh
 
 ```text
 rtl/qc_pkg.sv
+uvm/qc_if.sv
 uvm/qc_uvm_pkg.sv
 rtl/instruction_decoder.sv
 rtl/operation_queue.sv
@@ -785,15 +948,25 @@ results/waveforms/
 | Coverage reports | Functional coverage summary и missing bins |
 | Regression summary | Таблица test → status → seed → log |
 
+Финалната версия на този раздел трябва да съдържа реална regression таблица, а не само описание на планирани тестове. Минималният формат е:
+
+| UVM test | Sequence | Status | Seed | Log | Waveform/Coverage | Какво проверява |
+|---|---|---|---:|---|---|---|
+| `qc_smoke_test` | `qc_smoke_sequence` | TBD | 1 | `results/uvm_logs/qc_smoke_test.log` | TBD | H → MEASURE → BRANCH |
+| `qc_single_gate_test` | `qc_single_gate_sequence` | TBD | 1 | `results/uvm_logs/qc_single_gate_test.log` | TBD | H/X/Z command path |
+| `qc_branch_test` | `qc_branch_sequence` | TBD | 1 | `results/uvm_logs/qc_branch_test.log` | TBD | Measurement feedback branch |
+
+В тази таблица `PASS` може да се запише само след реално изпълнена UVM симулация с UVM-capable simulator. До тогава статусът трябва да остане `TBD`, `NOT RUN` или еквивалентно ясно обозначение.
+
 ---
 
 # 3.9 Ограничения на текущата UVM среда
 
 Текущите ограничения са:
 
-1. Реализирани са UVM package, transaction/sequence item, sequencer и начални sequence класове.
-2. Няма driver, monitor, scoreboard, coverage collector, agent, env или executable UVM tests.
-3. DUT все още не е свързан към UVM testbench чрез virtual interface.
+1. Реализирани са UVM package, transaction/sequence item, sequencer, начални sequence класове, virtual interface и driver.
+2. Няма monitor, scoreboard, coverage collector, agent, env или executable UVM tests.
+3. DUT сигналите са описани в `qc_if.sv`, но все още няма `tb_qc_uvm_top.sv`, който да инстанцира `quantum_controller_top` и да го свърже към interface-а.
 4. Няма UVM simulation script.
 5. Няма потвърден UVM simulator в PATH освен Verilator, който се използва за съществуващите non-UVM RTL testbench-и.
 6. Няма UVM logs, UVM waveforms или UVM coverage reports.
@@ -829,16 +1002,42 @@ results/waveforms/
 Следващата реална стъпка по Phase C е:
 
 ```text
-C3: virtual interface и qc_driver.sv
+C4: qc_monitor.sv
 ```
 
 Препоръчителен ред:
 
-1. Създаване на SystemVerilog interface за DUT сигналите, например `uvm/qc_if.sv`.
-2. Създаване на `uvm/qc_driver.sv`.
-3. Driver-ът трябва да извлича `qc_sequence_item` от `qc_sequencer`, да изчаква `instr_ready_o`, да подава `instr_i/instr_valid_i` и да обработва measurement response metadata.
-4. Обновяване на `uvm/qc_uvm_pkg.sv`, ако новите класове трябва да бъдат include-нати в package-а.
-5. Обновяване на този Markdown файл с реални code excerpts от interface/driver.
-6. Обновяване на `docs/AGENT_CONTEXT.md` с новия UVM статус.
+1. Създаване на `uvm/qc_monitor.sv`.
+2. Monitor-ът трябва да използва `virtual qc_if` и `mon_cb`.
+3. Monitor-ът трябва да наблюдава instruction input handshake, command outputs, measurement request/result outputs, feedback/branch outputs и status/debug сигналите.
+4. Monitor-ът трябва да публикува наблюдавани транзакции през analysis ports, за да могат бъдещите scoreboard и coverage компоненти да ги консумират.
+5. Обновяване на `uvm/qc_uvm_pkg.sv`, за да include-ва monitor-а.
+6. Обновяване на този Markdown файл с реални code excerpts от monitor-а.
+7. Обновяване на `docs/AGENT_CONTEXT.md` с новия UVM статус.
 
-Без driver и interface DUT все още не може да бъде управляван от UVM средата, въпреки че sequence stimulus-ът вече е дефиниран.
+След monitor-а трябва да се премине към `qc_scoreboard.sv` и `qc_coverage.sv`, защото без тях UVM средата все още няма автоматична проверка и functional coverage.
+
+---
+
+# 3.12 Definition of Done за UVM фазата
+
+Глава 3 може да се счита за готова за финално академично писане само когато UVM средата е не само написана, но и проверена с реални simulation artifacts. Минималните критерии са:
+
+1. Съществува `uvm/qc_if.sv`, който описва DUT сигналите и clocking/reset достъпа за UVM компонентите.
+2. Съществува `uvm/qc_driver.sv`, който управлява `instr_i`, `instr_valid_i` и спазва `instr_ready_o`.
+3. Driver-ът или отделен response механизъм обработва measurement response metadata от `qc_sequence_item`: `send_measurement_result`, `measurement_result_value` и `measurement_latency_cycles`.
+4. Съществува `uvm/qc_monitor.sv`, който наблюдава входния instruction интерфейс, command/issue изходите, measurement сигналите, branch/feedback сигналите и status/debug сигналите.
+5. Monitor-ът използва analysis ports, така че наблюдаваните транзакции да могат да се подават към scoreboard и coverage.
+6. Съществува `uvm/qc_scoreboard.sv` с reference checks за gate, measure, wait, reset, branch, illegal instruction, measurement feedback и основни queue/backpressure сценарии.
+7. Съществува `uvm/qc_coverage.sv` с functional coverage за opcode, flags, branch outcomes, measurement behavior, scheduler stall, queue state и algorithmic workloads.
+8. Съществуват `uvm/qc_agent.sv` и `uvm/qc_env.sv`, които свързват sequencer, driver, monitor, scoreboard и coverage в цялостна UVM среда.
+9. Съществуват executable UVM test класове, например `qc_smoke_test`, `qc_single_gate_test`, `qc_measure_test`, `qc_branch_test`, `qc_random_test` и algorithmic workload tests.
+10. Съществува `uvm/tb_qc_uvm_top.sv`, който инстанцира `quantum_controller_top`, interface-а и стартира `run_test()`.
+11. Съществува `scripts/run_uvm.sh` или еквивалентен run flow за избрания UVM-capable simulator.
+12. Има реални UVM logs в `results/uvm_logs/`.
+13. Има waveform artifacts за ключови сценарии, например в `results/uvm_waveforms/`.
+14. Има coverage artifacts или поне coverage summary за основните functional coverage групи.
+15. В раздел 3.8 има попълнена таблица `test name → status → seed → log file → waveform/coverage artifact → какво проверява`.
+16. Ясно са описани тестовете, които са минали, тестовете, които не са изпълнени, и ограниченията, които остават валидни.
+
+Важно ограничение: ако в локалната среда няма UVM-capable simulator, UVM кодът може да бъде описан като разработен, но не и като симулационно валидиран. В този случай във финалната дисертация трябва да се прави разграничение между написана UVM инфраструктура и реално изпълнена UVM regression проверка.

@@ -13,6 +13,7 @@ package qc_uvm_pkg;
     `include "qc_sequence_item.sv"
     `include "qc_sequencer.sv"
     `include "qc_sequences.sv"
+    `include "qc_driver.sv"
 
 endpackage : qc_uvm_pkg
 
