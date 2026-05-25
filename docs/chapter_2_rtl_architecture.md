@@ -963,6 +963,41 @@ operation_duration = (duration == 0) ? 1 : duration
 
 Операциите `WAIT` и `BRANCH` не заемат конкретен qubit resource чрез dependency tracker-а. `WAIT` използва отделен глобален wait counter, а branch контролът се управлява чрез top-level branch in-flight логика. Това разделение позволява qubit busy моделът да остане фокусиран върху ресурсните зависимости между операции, които реално използват target/control кубити.
 
+Кодов фрагмент 2.12 показва регистровата логика, чрез която scheduler-ът намалява busy counters във всеки тактов цикъл и ги зарежда при успешно issue на операция. Този фрагмент допълва описанието на busy-counter модела, защото показва, че заетостта на кубитите не е абстрактна променлива, а реално синхронно RTL състояние в `rtl/scheduler.sv`.
+
+**Кодов фрагмент 2.12. Обновяване на busy-counter състоянието в scheduler.sv**  
+Източник: `rtl/scheduler.sv`
+
+```systemverilog
+for (int i = 0; i < NUM_QUBITS; i++) begin
+    if (busy_cnt_q[i] != '0) begin
+        busy_cnt_q[i] <= busy_cnt_q[i] - ONE_CYCLE;
+    end
+end
+
+if (wait_cnt_q != '0) begin
+    wait_cnt_q <= wait_cnt_q - ONE_CYCLE;
+end
+
+if (can_issue) begin
+    issue_valid_o <= 1'b1;
+    issue_instr_o <= instr_i;
+
+    if (instr_i.opcode == OP_WAIT) begin
+        wait_cnt_q <= operation_duration;
+    end
+
+    if (tracker_uses_target) begin
+        busy_cnt_q[instr_i.target_qubit] <= operation_duration;
+    end
+
+    if (tracker_uses_control) begin
+        busy_cnt_q[instr_i.control_qubit] <= operation_duration;
+    end
+end
+```
+
+
 ## 2.6.3 Measurement pending logic
 
 Measurement controller-ът използва локално pending състояние, реализирано чрез `pending_q` и `pending_qubit_q`. Когато execution controller-ът генерира валидна `OP_MEASURE` команда, measurement controller-ът записва target qubit-а в `pending_qubit_q` и активира `pending_q`. В същия момент се генерира еднотактов `measure_request_valid_o` сигнал към външния measurement интерфейс.
