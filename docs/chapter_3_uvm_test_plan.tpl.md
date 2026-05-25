@@ -32,6 +32,29 @@
 | Seed metadata | В log файла и regression summary |
 | PASS/FAIL status | В regression summary |
 
+Минималните команди за работа с test plan-а са:
+
+```bash
+./scripts/run_uvm.sh --list
+UVM_SIM=<questa|xcelium|vcs> SEED=1 ./scripts/run_uvm.sh qc_smoke_test
+UVM_SIM=<questa|xcelium|vcs> SEED=1 ./scripts/run_uvm.sh all
+```
+
+При липса на UVM-capable simulator `scripts/run_uvm.sh` трябва да приключи с диагностично съобщение и без да записва `PASS`. Verilator остава само за non-UVM RTL regression flow-а.
+
+За всеки реален Chapter 4 run трябва да се пазят следните данни:
+
+| Поле | Как се използва във финалната дисертация |
+|---|---|
+| Test name | Име на executable UVM test класа |
+| Sequence | Генерираният stimulus workload |
+| Seed | Възпроизводимост на run-а |
+| Status | PASS/FAIL/ERROR/NOT RUN |
+| Log | Доказателство за UVM phases, scoreboard checks и грешки |
+| Waveform | Доказателство за key timing/handshake сценарии |
+| Coverage | Доказателство за functional coverage и missing bins |
+| Ограничения | Toolchain, coverage gaps или known unsupported сценарии |
+
 ---
 
 ## 2. Regression summary template
