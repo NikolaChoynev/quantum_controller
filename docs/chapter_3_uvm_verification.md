@@ -13,18 +13,20 @@
 → едва след това се описва като завършен резултат във финалната дисертация
 ```
 
-Към текущия момент е започната Phase C от работния план. Реализирана е началната UVM инфраструктура за transaction/sequence item, stimulus generation и driver/interface слой:
+Към текущия момент е започната Phase C от работния план. Реализирана е началната UVM инфраструктура за transaction/sequence item, stimulus generation, driver/interface слой и passive monitor observation слой:
 
 ```text
 uvm/qc_uvm_pkg.sv
 uvm/qc_sequence_item.sv
+uvm/qc_observation_item.sv
 uvm/qc_sequencer.sv
 uvm/qc_sequences.sv
 uvm/qc_if.sv
 uvm/qc_driver.sv
+uvm/qc_monitor.sv
 ```
 
-Все още не са реализирани monitor, scoreboard, coverage collector, UVM agent/environment, UVM tests или UVM top-level testbench. Sequencer-ът, sequence класовете, virtual interface-ът и driver-ът вече съществуват като UVM код, но все още не са изпълнявани срещу DUT като пълна UVM симулация, защото липсват agent/env/test top и UVM-capable simulator flow.
+Все още не са реализирани scoreboard, coverage collector, UVM agent/environment, UVM tests или UVM top-level testbench. Sequencer-ът, sequence класовете, virtual interface-ът, driver-ът и monitor-ът вече съществуват като UVM код, но все още не са изпълнявани срещу DUT като пълна UVM симулация, защото липсват agent/env/test top и UVM-capable simulator flow.
 
 ---
 
@@ -34,11 +36,11 @@ uvm/qc_driver.sv
 
 | № | Изисквана информация | Текущ статус | Къде се попълва |
 |---:|---|---|---|
-| 1 | Каква UVM среда е реализирана | Започната е UVM среда; налични са package, transaction item, sequencer, sequences, interface и driver | Раздели 3.2, 3.4 и 3.5 |
-| 2 | Кои файлове са създадени в `uvm/` | Създадени са `qc_uvm_pkg.sv`, `qc_sequence_item.sv`, `qc_sequencer.sv`, `qc_sequences.sv`, `qc_if.sv` и `qc_driver.sv` | Раздел 3.2 |
+| 1 | Каква UVM среда е реализирана | Започната е UVM среда; налични са package, transaction item, observation item, sequencer, sequences, interface, driver и monitor | Раздели 3.2, 3.4 и 3.5 |
+| 2 | Кои файлове са създадени в `uvm/` | Създадени са `qc_uvm_pkg.sv`, `qc_sequence_item.sv`, `qc_observation_item.sv`, `qc_sequencer.sv`, `qc_sequences.sv`, `qc_if.sv`, `qc_driver.sv` и `qc_monitor.sv` | Раздел 3.2 |
 | 3 | Как DUT е свързан към testbench-а | Частично реализирано чрез `qc_if.sv`; top-level UVM testbench още предстои | Раздел 3.3 |
 | 4 | Какво съдържа transaction/sequence item | Реализирано в `uvm/qc_sequence_item.sv` | Раздел 3.4 |
-| 5 | Как работят sequencer, driver, monitor, scoreboard и coverage | Sequencer, sequences и driver са реализирани; monitor/scoreboard/coverage предстоят | Раздел 3.5 |
+| 5 | Как работят sequencer, driver, monitor, scoreboard и coverage | Sequencer, sequences, driver и monitor са реализирани; scoreboard/coverage предстоят | Раздел 3.5 |
 | 6 | Какви directed tests са реализирани | Има directed sequence класове; executable UVM tests още няма | Раздел 3.6.1 |
 | 7 | Какви constrained-random/stress tests са реализирани | Има random и dependency stress sequence класове; още не са изпълнявани | Раздел 3.6.2 |
 | 8 | Какви algorithmic workloads са реализирани | Има Bell, GHZ и Grover-like sequence класове; още не са изпълнявани | Раздел 3.6.3 |
@@ -68,7 +70,7 @@ UVM средата трябва да работи върху основната 
 4. Scoreboard-ът сравнява очакваното поведение с наблюдаваните DUT изходи.
 5. Coverage collector-ът отчита opcode покритие, flag комбинации, dependency/stall сценарии, measurement-feedback сценарии, branch taken/not-taken сценарии и queue/backpressure състояния.
 
-Към момента тази методология е заложена в плана, като реално имплементирани са transaction/sequence item слой, sequencer, начални sequence класове, virtual interface и driver. Следващият липсващ слой е monitor/scoreboard/coverage и UVM agent/environment, които трябва да превърнат stimulus потока в наблюдаема и проверима UVM среда.
+Към момента тази методология е заложена в плана, като реално имплементирани са transaction/sequence item слой, observation item слой, sequencer, начални sequence класове, virtual interface, driver и monitor. Следващият липсващ слой е scoreboard/coverage и UVM agent/environment, които трябва да превърнат наблюдавания stimulus поток в автоматично проверима UVM среда.
 
 ---
 
@@ -80,15 +82,16 @@ UVM средата трябва да работи върху основната 
 |---|---|---|
 | `uvm/qc_uvm_pkg.sv` | Реализиран | Общ UVM package, който импортира `uvm_pkg`, `qc_pkg` и включва UVM класовете |
 | `uvm/qc_sequence_item.sv` | Реализиран | Transaction/sequence item за генериране на instruction-level stimulus |
+| `uvm/qc_observation_item.sv` | Реализиран | Observation transaction за monitor, scoreboard и coverage |
 | `uvm/qc_sequencer.sv` | Реализиран | Типизиран UVM sequencer за `qc_sequence_item` |
 | `uvm/qc_sequences.sv` | Реализиран | Directed, random, stress и algorithmic sequence класове |
 | `uvm/qc_if.sv` | Реализиран | SystemVerilog interface за DUT сигналите, driver/monitor clocking blocks и DUT modport |
 | `uvm/qc_driver.sv` | Реализиран | UVM driver, който управлява instruction ready/valid интерфейса и measurement response входа |
+| `uvm/qc_monitor.sv` | Реализиран | Passive UVM monitor, който публикува наблюдения през analysis port |
 
 Все още не са създадени:
 
 ```text
-uvm/qc_monitor.sv
 uvm/qc_scoreboard.sv
 uvm/qc_coverage.sv
 uvm/qc_agent.sv
@@ -114,9 +117,11 @@ package qc_uvm_pkg;
     import qc_pkg::*;
 
     `include "qc_sequence_item.sv"
+    `include "qc_observation_item.sv"
     `include "qc_sequencer.sv"
     `include "qc_sequences.sv"
     `include "qc_driver.sv"
+    `include "qc_monitor.sv"
 
 endpackage : qc_uvm_pkg
 ```
@@ -127,7 +132,7 @@ endpackage : qc_uvm_pkg
 
 # 3.3 DUT интерфейс и свързване към UVM testbench
 
-Част от свързването на DUT към UVM testbench вече е реализирана чрез `uvm/qc_if.sv`. Този SystemVerilog interface описва сигналите на `rtl/quantum_controller_top.sv`, предоставя clocking block за driver-а, clocking block за бъдещ monitor и `dut` modport за бъдещия top-level UVM testbench.
+Част от свързването на DUT към UVM testbench вече е реализирана чрез `uvm/qc_if.sv`. Този SystemVerilog interface описва сигналите на `rtl/quantum_controller_top.sv`, предоставя clocking block за driver-а, clocking block за monitor-а и `dut` modport за бъдещия top-level UVM testbench.
 
 Основните входове за stimulus са:
 
@@ -204,10 +209,11 @@ qc_sequence_item
 → virtual interface
 → quantum_controller_top
 → qc_monitor
+→ qc_observation_item
 → scoreboard + coverage
 ```
 
-SystemVerilog interface-ът и driver-ът вече са реализирани. Следващата стъпка е UVM agent/env слой, който да свърже driver-а със sequencer-а, monitor-а, scoreboard-а и coverage collector-а.
+SystemVerilog interface-ът, driver-ът и monitor-ът вече са реализирани. Следващата стъпка е UVM agent/env слой, който да свърже driver-а със sequencer-а, monitor-а, scoreboard-а и coverage collector-а.
 
 ## Кодов фрагмент 3.3 – Основни DUT сигнали в `qc_if.sv`
 
@@ -450,9 +456,9 @@ constraint measurement_response_c {
 
 ---
 
-# 3.5 UVM компоненти за stimulus generation и планирани следващи блокове
+# 3.5 UVM компоненти за stimulus generation, driving и observation
 
-Този раздел описва реализираните stimulus generation и driver компоненти, както и следващите планирани UVM блокове. Към момента sequencer-ът, sequence класовете, virtual interface-ът и driver-ът са реализирани, но monitor, scoreboard, coverage, agent, environment и executable UVM tests все още предстоят.
+Този раздел описва реализираните stimulus generation, driver и monitor компоненти, както и следващите планирани UVM блокове. Към момента sequencer-ът, sequence класовете, virtual interface-ът, driver-ът и monitor-ът са реализирани, но scoreboard, coverage, agent, environment и executable UVM tests все още предстоят.
 
 ## 3.5.1 Sequencer
 
@@ -488,7 +494,7 @@ endclass : qc_sequencer
 uvm/qc_sequences.sv
 ```
 
-Файлът `uvm/qc_sequences.sv` съдържа базов sequence клас и набор от начални directed, constrained-random, stress и algorithmic sequences. Тези класове генерират `qc_sequence_item` обекти, но още не са изпълнявани срещу DUT, защото driver и UVM testbench top още не са реализирани.
+Файлът `uvm/qc_sequences.sv` съдържа базов sequence клас и набор от начални directed, constrained-random, stress и algorithmic sequences. Тези класове генерират `qc_sequence_item` обекти, но още не са изпълнявани срещу DUT, защото UVM agent, environment и testbench top още не са реализирани.
 
 | Sequence class | Статус | Цел |
 |---|---|---|
@@ -605,7 +611,7 @@ repeat (item_count) begin
 end
 ```
 
-Този sequence е основата за бъдещи random regression тестове. След добавяне на driver/monitor/scoreboard той ще може да проверява по-дълги валидни instruction streams.
+Този sequence е основата за бъдещи random regression тестове. След добавяне на scoreboard, agent/env и executable UVM tests той ще може да проверява по-дълги валидни instruction streams.
 
 ## Кодов фрагмент 3.15 – Algorithmic Bell workload
 
@@ -731,24 +737,179 @@ endtask
 
 ## 3.5.4 Monitor
 
-Планирани файлове:
+Реализирани файлове:
 
 ```text
+uvm/qc_observation_item.sv
 uvm/qc_monitor.sv
 ```
 
-Monitor-ът трябва да наблюдава:
+Monitor-ът е пасивен UVM компонент. Той не управлява DUT входове, а използва `virtual qc_if` и `mon_cb`, за да наблюдава вече описаните DUT сигнали. За да не се обвързват бъдещите scoreboard и coverage компоненти директно със signal-level интерфейса, monitor-ът публикува нормализирани observation transactions от тип `qc_observation_item`.
 
-| Интерфейс | Наблюдавани сигнали |
+`qc_observation_item` съдържа отделни полета за:
+
+| Група | Полета |
 |---|---|
-| Instruction input | `instr_i`, `instr_valid_i`, `instr_ready_o` |
-| Issue stage | `issue_valid_o`, `issue_opcode_o`, `issue_target_qubit_o`, `issue_control_qubit_o`, `issue_duration_o`, `issue_flags_o` |
-| Command stage | `command_valid_o`, `command_opcode_o`, `command_target_qubit_o`, `command_control_qubit_o`, `command_duration_o`, `command_flags_o`, command class outputs |
-| Measurement | `measure_request_valid_o`, `measure_qubit_o`, `measurement_busy_o`, result outputs |
-| Feedback/branch | `feedback_valid_o`, `branch_taken_o`, `branch_target_o`, `condition_checked_o`, `missing_measurement_o` |
-| Status | `scheduler_stall_o`, `illegal_instr_o`, `illegal_issue_o`, `queue_count_o`, `qubit_busy_o` |
+| Instruction/decode | `raw_instr`, `opcode`, `target_qubit`, `control_qubit`, `duration`, `flags`, `reserved` |
+| Command classification | `gate_cmd`, `measure_cmd`, `wait_cmd`, `reset_cmd`, `branch_cmd`, `nop_cmd` |
+| Measurement request | `measure_request_valid`, `measure_qubit`, `measurement_busy` |
+| Measurement response input | `measurement_response_valid`, `measurement_response_value` |
+| Measurement result output | `measurement_result_valid`, `measurement_result_qubit`, `measurement_result_value`, `measurement_valid`, `measurement_results` |
+| Feedback/branch | `feedback_valid`, `branch_taken`, `branch_target`, `feedback_qubit`, `feedback_value`, `condition_checked`, `missing_measurement` |
+| Status/debug | `scheduler_stall`, `illegal_instr`, `illegal_issue`, `unexpected_measurement_result`, `queue_count`, `qubit_busy` |
 
-Monitor-ът трябва да изпраща observed transactions към scoreboard и coverage чрез analysis ports.
+Monitor-ът създава следните observation типове:
+
+| Observation kind | Кога се публикува | За какво ще се използва |
+|---|---|---|
+| `QC_OBS_INSTRUCTION` | При `instr_valid_i && instr_ready_o` | Проверка на приети инструкции и входен ред |
+| `QC_OBS_ISSUE` | При `issue_valid_o` | Сравнение между decoder/queue/scheduler issue поведение |
+| `QC_OBS_COMMAND` | При command/classification активност | Проверка на execution controller command path |
+| `QC_OBS_MEASURE_REQUEST` | При `measure_request_valid_o` | Проверка на measurement request path |
+| `QC_OBS_MEASURE_RESPONSE` | При `measurement_result_valid_i` | Корелация между driver response и DUT output |
+| `QC_OBS_MEASURE_RESULT` | При `measurement_result_out_valid_o` | Проверка на съхранен measurement резултат |
+| `QC_OBS_FEEDBACK` | При feedback/branch/missing measurement активност | Проверка на feedback/branch unit |
+| `QC_OBS_STATUS` | При status флагове или промяна на `queue_count_o`/`qubit_busy_o` | Scoreboard и coverage за stall, illegal и queue/busy състояния |
+
+## Кодов фрагмент 3.19 – Observation item типове
+
+От `uvm/qc_observation_item.sv`:
+
+```systemverilog
+typedef enum int unsigned {
+    QC_OBS_INSTRUCTION,
+    QC_OBS_ISSUE,
+    QC_OBS_COMMAND,
+    QC_OBS_MEASURE_REQUEST,
+    QC_OBS_MEASURE_RESPONSE,
+    QC_OBS_MEASURE_RESULT,
+    QC_OBS_FEEDBACK,
+    QC_OBS_STATUS
+} qc_observation_kind_e;
+
+class qc_observation_item extends uvm_sequence_item;
+
+    qc_observation_kind_e       kind;
+    logic [INSTR_W-1:0]         raw_instr;
+    qc_opcode_e                 opcode;
+    logic [QUBIT_ID_W-1:0]      target_qubit;
+    logic [QUBIT_ID_W-1:0]      control_qubit;
+    logic [DURATION_W-1:0]      duration;
+    logic [FLAGS_W-1:0]         flags;
+```
+
+Този клас е отделен от `qc_sequence_item`, защото stimulus transaction-ът и observed transaction-ът имат различна роля. `qc_sequence_item` описва какво иска тестът да подаде към DUT, докато `qc_observation_item` описва какво реално е наблюдавано по входните, вътрешно-архитектурните и изходните DUT интерфейси.
+
+## Кодов фрагмент 3.20 – Analysis port и virtual interface в monitor-а
+
+От `uvm/qc_monitor.sv`:
+
+```systemverilog
+class qc_monitor extends uvm_monitor;
+
+    virtual qc_if vif;
+
+    uvm_analysis_port #(qc_observation_item) analysis_port;
+
+    `uvm_component_utils(qc_monitor)
+
+    function void build_phase(uvm_phase phase);
+        super.build_phase(phase);
+
+        if (!uvm_config_db #(virtual qc_if)::get(this, "", "vif", vif)) begin
+            `uvm_fatal(get_type_name(), "Virtual interface 'vif' was not provided")
+        end
+    endfunction
+```
+
+Това е същият `vif` pattern като при driver-а. Бъдещият `qc_agent` трябва да зададе един и същ virtual interface към driver-а и monitor-а, а monitor-ът ще подава наблюденията към scoreboard и coverage чрез `analysis_port`.
+
+## Кодов фрагмент 3.21 – Основен monitor sampling loop
+
+Monitor-ът изчаква reset release и след това взема проба на всеки clocking block цикъл. В рамките на един цикъл може да публикува повече от един observation item, например accepted instruction, command и status.
+
+```systemverilog
+task run_phase(uvm_phase phase);
+    wait_for_reset_release();
+
+    forever begin
+        @(vif.mon_cb);
+
+        if (vif.mon_cb.rst_ni !== 1'b1) begin
+            have_status_sample = 1'b0;
+            continue;
+        end
+
+        sample_cycle();
+    end
+endtask
+
+function void sample_cycle();
+    if (vif.mon_cb.instr_valid_i && vif.mon_cb.instr_ready_o) begin
+        sample_instruction();
+    end
+
+    if (vif.mon_cb.issue_valid_o) begin
+        sample_issue();
+    end
+
+    if (vif.mon_cb.command_valid_o ||
+        vif.mon_cb.gate_cmd_o ||
+        vif.mon_cb.measure_cmd_o ||
+        vif.mon_cb.wait_cmd_o ||
+        vif.mon_cb.reset_cmd_o ||
+        vif.mon_cb.branch_cmd_o ||
+        vif.mon_cb.nop_cmd_o) begin
+        sample_command();
+    end
+endfunction
+```
+
+Instruction observation-ът се публикува само при реален ready/valid handshake, тоест когато DUT действително е приел инструкцията. Това е важно за scoreboard-а, защото входната опашка и backpressure сценарии не трябва да броят неприети инструкции като изпълнени.
+
+## Кодов фрагмент 3.22 – Measurement, feedback и status observation
+
+Monitor-ът наблюдава както measurement request към външен измервателен блок, така и measurement response входа, който driver-ът подава към DUT. Това позволява по-късно scoreboard-ът да провери дали подаденият резултат се появява като коректен `measurement_result_out_valid_o` и дали feedback unit-ът използва правилната стойност.
+
+```systemverilog
+if (vif.mon_cb.measure_request_valid_o) begin
+    sample_measure_request();
+end
+
+if (vif.mon_cb.measurement_result_valid_i) begin
+    sample_measure_response();
+end
+
+if (vif.mon_cb.measurement_result_out_valid_o) begin
+    sample_measure_result();
+end
+
+if (vif.mon_cb.feedback_valid_o ||
+    vif.mon_cb.branch_taken_o ||
+    vif.mon_cb.condition_checked_o ||
+    vif.mon_cb.missing_measurement_o) begin
+    sample_feedback();
+end
+
+if (should_sample_status()) begin
+    sample_status();
+end
+```
+
+Status observation-ът не се публикува само при error флагове. Той се публикува и при промяна на `queue_count_o` или `qubit_busy_o`, защото тези сигнали са нужни за бъдещата проверка на queue/backpressure и dependency/stall поведение.
+
+## Как се проверява C4
+
+На този етап monitor-ът е code-complete като UVM компонент, но не е изпълняван в реална UVM симулация. Причината е същото toolchain ограничение: липсват UVM agent/env/top и UVM-capable simulator flow. Минималната текуща проверка е:
+
+```text
+1. `uvm/qc_uvm_pkg.sv` include-ва `qc_observation_item.sv` преди `qc_monitor.sv`.
+2. `qc_monitor.sv` използва същия `virtual qc_if` pattern като driver-а.
+3. Monitor-ът публикува само през `uvm_analysis_port #(qc_observation_item)`.
+4. Няма claim за PASS UVM simulation, докато не се добавят agent/env/top и реален simulator run.
+```
+
+Следващата практическа проверка трябва да стане при добавяне на `qc_agent.sv` и `qc_env.sv`, където `monitor.analysis_port` ще бъде свързан към scoreboard и coverage subscribers.
 
 ## 3.5.5 Scoreboard
 
@@ -774,6 +935,8 @@ Scoreboard-ът трябва да реализира reference модел на �
 | Missing measurement | Conditional branch без measurement трябва да активира `missing_measurement_o` |
 | Queue/backpressure | Queue count и stall поведение трябва да останат консистентни |
 
+Scoreboard-ът не трябва да чете директно `qc_if`, а да получава `qc_observation_item` от monitor analysis stream-а. Това ще запази разделението между observation layer и checking layer.
+
 ## 3.5.6 Coverage
 
 Планиран файл:
@@ -795,6 +958,8 @@ Coverage моделът трябва да измерва не само opcode п
 | Scheduler coverage | stall, no-stall, dependency hazard, WAIT hold |
 | Queue coverage | empty, non-empty, full, flush |
 | Algorithmic coverage | Bell, GHZ, Grover-like, random-circuit-inspired workloads |
+
+Coverage collector-ът също трябва да бъде subscriber към `qc_observation_item` потока, за да покрива реално наблюдавани DUT събития, а не само генериран stimulus.
 
 ---
 
@@ -924,6 +1089,8 @@ uvm/tb_qc_uvm_top.sv
 
 и да стартира избран UVM test чрез `+UVM_TESTNAME=...`.
 
+Файловете `qc_sequence_item.sv`, `qc_observation_item.sv`, `qc_sequencer.sv`, `qc_sequences.sv`, `qc_driver.sv` и `qc_monitor.sv` се включват през `uvm/qc_uvm_pkg.sv`, затова run script-ът трябва да подаде правилен include path към директорията `uvm/`.
+
 ---
 
 # 3.8 Logs, waveforms и coverage резултати
@@ -964,9 +1131,9 @@ results/waveforms/
 
 Текущите ограничения са:
 
-1. Реализирани са UVM package, transaction/sequence item, sequencer, начални sequence класове, virtual interface и driver.
-2. Няма monitor, scoreboard, coverage collector, agent, env или executable UVM tests.
-3. DUT сигналите са описани в `qc_if.sv`, но все още няма `tb_qc_uvm_top.sv`, който да инстанцира `quantum_controller_top` и да го свърже към interface-а.
+1. Реализирани са UVM package, transaction/sequence item, observation item, sequencer, начални sequence класове, virtual interface, driver и monitor.
+2. Няма scoreboard, coverage collector, agent, env или executable UVM tests.
+3. DUT сигналите са описани в `qc_if.sv`, а monitor-ът ги наблюдава през `mon_cb`, но все още няма `tb_qc_uvm_top.sv`, който да инстанцира `quantum_controller_top` и да го свърже към interface-а.
 4. Няма UVM simulation script.
 5. Няма потвърден UVM simulator в PATH освен Verilator, който се използва за съществуващите non-UVM RTL testbench-и.
 6. Няма UVM logs, UVM waveforms или UVM coverage reports.
@@ -1002,20 +1169,22 @@ results/waveforms/
 Следващата реална стъпка по Phase C е:
 
 ```text
-C4: qc_monitor.sv
+C5: qc_scoreboard.sv
 ```
 
 Препоръчителен ред:
 
-1. Създаване на `uvm/qc_monitor.sv`.
-2. Monitor-ът трябва да използва `virtual qc_if` и `mon_cb`.
-3. Monitor-ът трябва да наблюдава instruction input handshake, command outputs, measurement request/result outputs, feedback/branch outputs и status/debug сигналите.
-4. Monitor-ът трябва да публикува наблюдавани транзакции през analysis ports, за да могат бъдещите scoreboard и coverage компоненти да ги консумират.
-5. Обновяване на `uvm/qc_uvm_pkg.sv`, за да include-ва monitor-а.
-6. Обновяване на този Markdown файл с реални code excerpts от monitor-а.
-7. Обновяване на `docs/AGENT_CONTEXT.md` с новия UVM статус.
+1. Създаване на `uvm/qc_scoreboard.sv`.
+2. Scoreboard-ът трябва да приема `qc_observation_item` през analysis implementation/export.
+3. Scoreboard-ът трябва да поддържа минимална очаквана instruction queue на база `QC_OBS_INSTRUCTION`.
+4. Scoreboard-ът трябва да проверява command classification за gate, measure, wait, reset, branch и nop.
+5. Scoreboard-ът трябва да корелира measurement request, measurement response и measurement result output.
+6. Scoreboard-ът трябва да проверява feedback/branch observations за taken/not-taken/missing-measurement сценарии.
+7. Обновяване на `uvm/qc_uvm_pkg.sv`, за да include-ва scoreboard-а.
+8. Обновяване на този Markdown файл с реални code excerpts от scoreboard-а.
+9. Обновяване на `docs/AGENT_CONTEXT.md` с новия UVM статус.
 
-След monitor-а трябва да се премине към `qc_scoreboard.sv` и `qc_coverage.sv`, защото без тях UVM средата все още няма автоматична проверка и functional coverage.
+След scoreboard-а трябва да се премине към `qc_coverage.sv`, защото без functional coverage Глава 3 няма да има количествена оценка на обхвата на тестовете.
 
 ---
 
