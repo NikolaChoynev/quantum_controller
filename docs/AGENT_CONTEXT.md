@@ -406,9 +406,10 @@ uvm/qc_if.sv
 uvm/qc_driver.sv
 uvm/qc_monitor.sv
 uvm/qc_scoreboard.sv
+uvm/qc_coverage.sv
 ```
 
-`uvm/qc_uvm_pkg.sv` импортира `uvm_pkg`, включва `uvm_macros.svh`, импортира `qc_pkg` и включва `qc_sequence_item.sv`, `qc_observation_item.sv`, `qc_sequencer.sv`, `qc_sequences.sv`, `qc_driver.sv`, `qc_monitor.sv` и `qc_scoreboard.sv`. `uvm/qc_if.sv` не е include-нат в package-а, защото е SystemVerilog interface/design element и трябва да се компилира отделно преди UVM package-а.
+`uvm/qc_uvm_pkg.sv` импортира `uvm_pkg`, включва `uvm_macros.svh`, импортира `qc_pkg` и включва `qc_sequence_item.sv`, `qc_observation_item.sv`, `qc_sequencer.sv`, `qc_sequences.sv`, `qc_driver.sv`, `qc_monitor.sv`, `qc_scoreboard.sv` и `qc_coverage.sv`. `uvm/qc_if.sv` не е include-нат в package-а, защото е SystemVerilog interface/design element и трябва да се компилира отделно преди UVM package-а.
 
 `uvm/qc_sequence_item.sv` реализира `qc_sequence_item extends uvm_sequence_item`. Той използва реалните RTL параметри и типове от `rtl/qc_pkg.sv`: `qc_opcode_e`, `INSTR_W`, `QUBIT_ID_W`, `DURATION_W`, `FLAGS_W`, `RESERVED_W` и flag bit константите. Transaction item-ът съдържа opcode, target/control qubit, duration, flags, reserved, valid/invalid controls, raw override support и measurement response metadata. Добавени са helper функции `pack_raw()`, `update_raw()`, `load_raw()`, `to_fields()` и classification helpers за gate/measurement/branch инструкции.
 
@@ -431,12 +432,13 @@ uvm/qc_scoreboard.sv
 
 `uvm/qc_scoreboard.sv` реализира `qc_scoreboard extends uvm_component`. Scoreboard-ът консумира `qc_observation_item` чрез `uvm_analysis_imp #(qc_observation_item, qc_scoreboard)`, поддържа очаквани FIFO опашки за accepted instruction → issue → command, проверява one-hot command classification за gate/measure/wait/reset/branch/nop, корелира measurement request → driver response → measurement result output, поддържа локален measurement state model за feedback checks и проверява branch taken/not-taken/missing-measurement поведение. Status checks покриват `illegal_instr`, `illegal_issue`, `unexpected_measurement_result`, queue depth и unknown `qubit_busy_o`.
 
-Важно: UVM компонентите все още не са изпълнявани срещу DUT като пълна UVM симулация, защото coverage, agent/env, UVM top-level testbench и run script още не са реализирани. Няма и потвърден UVM-capable simulator flow.
+`uvm/qc_coverage.sv` реализира `qc_coverage extends uvm_subscriber #(qc_observation_item)`. Coverage компонентът дефинира covergroups за observation kind, opcode, valid/conditional/feedback/expected flags, opcode × flags, command class, opcode × command class, measurement request/response/result/value/busy/unexpected path, feedback branch taken/not-taken/condition/missing measurement/value, scheduler stall, illegal/status, queue count и busy qubit count. Coverage моделът не твърди coverage процент, докато няма реален UVM run.
+
+Важно: UVM компонентите все още не са изпълнявани срещу DUT като пълна UVM симулация, защото agent/env, UVM top-level testbench и run script още не са реализирани. Няма и потвърден UVM-capable simulator flow.
 
 Още не са реализирани:
 
 ```text
-uvm/qc_coverage.sv
 uvm/qc_agent.sv
 uvm/qc_env.sv
 uvm/qc_base_test.sv
@@ -446,19 +448,18 @@ scripts/run_uvm.sh
 
 Наличният локален simulator flow към момента е Verilator за non-UVM RTL testbench-и. `vlog/vsim`, `xrun` и `vcs` не са намерени в PATH при последната проверка. Затова новият UVM код все още не е стартиран като UVM симулация и не трябва да се твърди, че има UVM logs/waveforms/coverage резултати.
 
-Следващата непосредствена задача е Phase C6:
-
-```text
-uvm/qc_coverage.sv
-```
-
-Целта е coverage компонентът да консумира `qc_observation_item` потока от monitor-а и да събира functional coverage за opcode, command class, flags, measurement request/result, feedback/branch outcomes, illegal/status събития и queue/busy състояния.
-
-След Phase C6 трябва да се продължи с:
+Следващата непосредствена задача е Phase C7:
 
 ```text
 uvm/qc_agent.sv
 uvm/qc_env.sv
+```
+
+Целта е agent/env слоят да свърже sequencer, driver, monitor, scoreboard и coverage в една UVM среда. Agent-ът трябва да свърже `driver.seq_item_port` към `sequencer.seq_item_export`, а env-ът трябва да свърже `monitor.analysis_port` към `scoreboard.analysis_export` и coverage subscriber-а.
+
+След Phase C7 трябва да се продължи с:
+
+```text
 uvm/qc_base_test.sv
 uvm/tb_qc_uvm_top.sv
 scripts/run_uvm.sh

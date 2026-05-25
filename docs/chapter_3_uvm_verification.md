@@ -25,9 +25,10 @@ uvm/qc_if.sv
 uvm/qc_driver.sv
 uvm/qc_monitor.sv
 uvm/qc_scoreboard.sv
+uvm/qc_coverage.sv
 ```
 
-Все още не са реализирани coverage collector, UVM agent/environment, UVM tests или UVM top-level testbench. Sequencer-ът, sequence класовете, virtual interface-ът, driver-ът, monitor-ът и scoreboard-ът вече съществуват като UVM код, но все още не са изпълнявани срещу DUT като пълна UVM симулация, защото липсват agent/env/test top и UVM-capable simulator flow.
+Все още не са реализирани UVM agent/environment, UVM tests или UVM top-level testbench. Sequencer-ът, sequence класовете, virtual interface-ът, driver-ът, monitor-ът, scoreboard-ът и coverage collector-ът вече съществуват като UVM код, но все още не са изпълнявани срещу DUT като пълна UVM симулация, защото липсват agent/env/test top и UVM-capable simulator flow.
 
 ---
 
@@ -37,11 +38,11 @@ uvm/qc_scoreboard.sv
 
 | № | Изисквана информация | Текущ статус | Къде се попълва |
 |---:|---|---|---|
-| 1 | Каква UVM среда е реализирана | Започната е UVM среда; налични са package, transaction item, observation item, sequencer, sequences, interface, driver, monitor и scoreboard | Раздели 3.2, 3.4 и 3.5 |
-| 2 | Кои файлове са създадени в `uvm/` | Създадени са `qc_uvm_pkg.sv`, `qc_sequence_item.sv`, `qc_observation_item.sv`, `qc_sequencer.sv`, `qc_sequences.sv`, `qc_if.sv`, `qc_driver.sv`, `qc_monitor.sv` и `qc_scoreboard.sv` | Раздел 3.2 |
+| 1 | Каква UVM среда е реализирана | Започната е UVM среда; налични са package, transaction item, observation item, sequencer, sequences, interface, driver, monitor, scoreboard и coverage | Раздели 3.2, 3.4 и 3.5 |
+| 2 | Кои файлове са създадени в `uvm/` | Създадени са `qc_uvm_pkg.sv`, `qc_sequence_item.sv`, `qc_observation_item.sv`, `qc_sequencer.sv`, `qc_sequences.sv`, `qc_if.sv`, `qc_driver.sv`, `qc_monitor.sv`, `qc_scoreboard.sv` и `qc_coverage.sv` | Раздел 3.2 |
 | 3 | Как DUT е свързан към testbench-а | Частично реализирано чрез `qc_if.sv`; top-level UVM testbench още предстои | Раздел 3.3 |
 | 4 | Какво съдържа transaction/sequence item | Реализирано в `uvm/qc_sequence_item.sv` | Раздел 3.4 |
-| 5 | Как работят sequencer, driver, monitor, scoreboard и coverage | Sequencer, sequences, driver, monitor и scoreboard са реализирани; coverage предстои | Раздел 3.5 |
+| 5 | Как работят sequencer, driver, monitor, scoreboard и coverage | Sequencer, sequences, driver, monitor, scoreboard и coverage са реализирани като отделни компоненти; agent/env свързването предстои | Раздел 3.5 |
 | 6 | Какви directed tests са реализирани | Има directed sequence класове; executable UVM tests още няма | Раздел 3.6.1 |
 | 7 | Какви constrained-random/stress tests са реализирани | Има random и dependency stress sequence класове; още не са изпълнявани | Раздел 3.6.2 |
 | 8 | Какви algorithmic workloads са реализирани | Има Bell, GHZ и Grover-like sequence класове; още не са изпълнявани | Раздел 3.6.3 |
@@ -71,7 +72,7 @@ UVM средата трябва да работи върху основната 
 4. Scoreboard-ът сравнява очакваното поведение с наблюдаваните DUT изходи.
 5. Coverage collector-ът отчита opcode покритие, flag комбинации, dependency/stall сценарии, measurement-feedback сценарии, branch taken/not-taken сценарии и queue/backpressure състояния.
 
-Към момента тази методология е заложена в плана, като реално имплементирани са transaction/sequence item слой, observation item слой, sequencer, начални sequence класове, virtual interface, driver, monitor и scoreboard. Следващият липсващ слой е coverage и UVM agent/environment, които трябва да свържат компонентите в executable UVM среда и да дадат количествена оценка на покритието.
+Към момента тази методология е заложена в плана, като реално имплементирани са transaction/sequence item слой, observation item слой, sequencer, начални sequence класове, virtual interface, driver, monitor, scoreboard и coverage collector. Следващият липсващ слой е UVM agent/environment, който трябва да свърже компонентите в executable UVM среда.
 
 ---
 
@@ -90,11 +91,11 @@ UVM средата трябва да работи върху основната 
 | `uvm/qc_driver.sv` | Реализиран | UVM driver, който управлява instruction ready/valid интерфейса и measurement response входа |
 | `uvm/qc_monitor.sv` | Реализиран | Passive UVM monitor, който публикува наблюдения през analysis port |
 | `uvm/qc_scoreboard.sv` | Реализиран | Reference checking компонент върху `qc_observation_item` потока |
+| `uvm/qc_coverage.sv` | Реализиран | Functional coverage subscriber върху `qc_observation_item` потока |
 
 Все още не са създадени:
 
 ```text
-uvm/qc_coverage.sv
 uvm/qc_agent.sv
 uvm/qc_env.sv
 uvm/qc_base_test.sv
@@ -124,6 +125,7 @@ package qc_uvm_pkg;
     `include "qc_driver.sv"
     `include "qc_monitor.sv"
     `include "qc_scoreboard.sv"
+    `include "qc_coverage.sv"
 
 endpackage : qc_uvm_pkg
 ```
@@ -215,7 +217,7 @@ qc_sequence_item
 → scoreboard + coverage
 ```
 
-SystemVerilog interface-ът, driver-ът, monitor-ът и scoreboard-ът вече са реализирани. Следващата стъпка е coverage и UVM agent/env слой, който да свърже driver-а със sequencer-а, monitor-а, scoreboard-а и coverage collector-а.
+SystemVerilog interface-ът, driver-ът, monitor-ът, scoreboard-ът и coverage collector-ът вече са реализирани. Следващата стъпка е UVM agent/env слой, който да свърже driver-а със sequencer-а, monitor-а, scoreboard-а и coverage collector-а.
 
 ## Кодов фрагмент 3.3 – Основни DUT сигнали в `qc_if.sv`
 
@@ -460,7 +462,7 @@ constraint measurement_response_c {
 
 # 3.5 UVM компоненти за stimulus generation, driving, observation и checking
 
-Този раздел описва реализираните stimulus generation, driver, monitor и scoreboard компоненти, както и следващите планирани UVM блокове. Към момента sequencer-ът, sequence класовете, virtual interface-ът, driver-ът, monitor-ът и scoreboard-ът са реализирани, но coverage, agent, environment и executable UVM tests все още предстоят.
+Този раздел описва реализираните stimulus generation, driver, monitor, scoreboard и coverage компоненти, както и следващите планирани UVM блокове. Към момента sequencer-ът, sequence класовете, virtual interface-ът, driver-ът, monitor-ът, scoreboard-ът и coverage collector-ът са реализирани, но agent, environment и executable UVM tests все още предстоят.
 
 ## 3.5.1 Sequencer
 
@@ -1208,31 +1210,297 @@ endfunction
 5. Няма claim за PASS UVM simulation, докато не се добавят agent/env/top и реален simulator run.
 ```
 
-Следващата практическа стъпка е `uvm/qc_coverage.sv`, а след това `qc_agent.sv` и `qc_env.sv`, където `monitor.analysis_port` ще се свърже към `scoreboard.analysis_export` и coverage subscriber-а.
+След C6 следва `qc_agent.sv` и `qc_env.sv`, където `monitor.analysis_port` ще се свърже към `scoreboard.analysis_export` и coverage subscriber-а.
 
 ## 3.5.6 Coverage
 
-Планиран файл:
+Реализиран файл:
 
 ```text
 uvm/qc_coverage.sv
 ```
 
-Coverage моделът трябва да измерва не само opcode покритие, а и важни cross сценарии:
+Coverage моделът е реализиран като `uvm_subscriber #(qc_observation_item)`. Това означава, че той използва същия observation поток като scoreboard-а и отчита реално наблюдавани DUT събития, а не само генериран stimulus.
+
+```text
+qc_monitor
+→ qc_observation_item stream
+→ qc_coverage
+```
+
+Coverage компонентът измерва не само opcode покритие, а и важни cross сценарии:
 
 | Coverage категория | Примерни bins/cross |
 |---|---|
 | Opcode coverage | NOP, H, X, Z, CNOT, MEASURE, WAIT, RESET, BRANCH, INVALID |
-| Qubit coverage | target qubit и control qubit разпределение |
 | Flag coverage | valid, conditional, feedback, expected |
 | Opcode × flags | BRANCH × conditional/feedback/expected |
 | Measurement coverage | measurement request, result value 0/1, busy behavior |
 | Branch coverage | taken, not taken, missing measurement |
 | Scheduler coverage | stall, no-stall, dependency hazard, WAIT hold |
-| Queue coverage | empty, non-empty, full, flush |
-| Algorithmic coverage | Bell, GHZ, Grover-like, random-circuit-inspired workloads |
+| Queue/busy coverage | empty, non-empty, full-or-more, busy qubit count |
+| Command coverage | opcode × command class |
 
-Coverage collector-ът също трябва да бъде subscriber към `qc_observation_item` потока, за да покрива реално наблюдавани DUT събития, а не само генериран stimulus.
+Алгоритмичните workload-и, като Bell, GHZ и Grover-like, ще се виждат чрез opcode/command/measurement/feedback покритието, когато бъдат добавени executable UVM tests. На този етап няма отделен workload label в `qc_observation_item`, затова coverage моделът не твърди самостоятелни bins за test name или sequence name.
+
+## Кодов фрагмент 3.29 – Coverage subscriber и sampled state
+
+От `uvm/qc_coverage.sv`:
+
+```systemverilog
+class qc_coverage extends uvm_subscriber #(qc_observation_item);
+
+    qc_observation_kind_e sampled_kind;
+    qc_opcode_e           sampled_opcode;
+    qc_command_class_e    sampled_command_class;
+
+    bit                   sampled_valid_flag;
+    bit                   sampled_conditional_flag;
+    bit                   sampled_feedback_flag;
+    bit                   sampled_expected_flag;
+
+    bit                   sampled_measure_request;
+    bit                   sampled_measure_response;
+    bit                   sampled_measure_response_value;
+    bit                   sampled_measure_result;
+    bit                   sampled_measure_result_value;
+    bit                   sampled_measurement_busy;
+```
+
+Coverage класът не работи директно със signal-level интерфейса. Той първо преобразува `qc_observation_item` към sampled state променливи, а covergroup-ите семплират тези стабилни променливи.
+
+## Кодов фрагмент 3.30 – Opcode и flag coverage
+
+Instruction coverage групата покрива всички opcode-и от `qc_pkg.sv`, invalid/default opcode случаи, valid flag и branch-related flags.
+
+```systemverilog
+covergroup instruction_cg with function sample();
+    option.per_instance = 1;
+
+    opcode_cp: coverpoint sampled_opcode {
+        bins nop     = {OP_NOP};
+        bins h       = {OP_H};
+        bins x       = {OP_X};
+        bins z       = {OP_Z};
+        bins cnot    = {OP_CNOT};
+        bins measure = {OP_MEASURE};
+        bins wait_op = {OP_WAIT};
+        bins reset   = {OP_RESET};
+        bins branch  = {OP_BRANCH};
+        bins invalid = default;
+    }
+
+    valid_flag_cp: coverpoint sampled_valid_flag {
+        bins invalid_flag = {0};
+        bins valid_flag   = {1};
+    }
+
+    conditional_flag_cp: coverpoint sampled_conditional_flag {
+        bins off = {0};
+        bins on  = {1};
+    }
+
+    feedback_flag_cp: coverpoint sampled_feedback_flag {
+        bins off = {0};
+        bins on  = {1};
+    }
+
+    expected_flag_cp: coverpoint sampled_expected_flag {
+        bins expected_zero = {0};
+        bins expected_one  = {1};
+    }
+
+    opcode_x_valid: cross opcode_cp, valid_flag_cp;
+    branch_x_flags: cross opcode_cp, conditional_flag_cp, feedback_flag_cp, expected_flag_cp;
+endgroup
+```
+
+Това покритие е важно за финалната дисертация, защото показва как ще се измерва дали тестовете преминават през всички instruction класове и branch флагови комбинации.
+
+## Кодов фрагмент 3.31 – Command class coverage
+
+Coverage моделът дефинира отделен command classification enum, който нормализира `gate_cmd`, `measure_cmd`, `wait_cmd`, `reset_cmd`, `branch_cmd` и `nop_cmd`.
+
+```systemverilog
+typedef enum int unsigned {
+    QC_CMD_CLASS_NONE,
+    QC_CMD_CLASS_GATE,
+    QC_CMD_CLASS_MEASURE,
+    QC_CMD_CLASS_WAIT,
+    QC_CMD_CLASS_RESET,
+    QC_CMD_CLASS_BRANCH,
+    QC_CMD_CLASS_NOP,
+    QC_CMD_CLASS_MULTI
+} qc_command_class_e;
+
+covergroup command_cg with function sample();
+    option.per_instance = 1;
+
+    opcode_cp: coverpoint sampled_opcode {
+        bins nop     = {OP_NOP};
+        bins gates   = {OP_H, OP_X, OP_Z, OP_CNOT};
+        bins measure = {OP_MEASURE};
+        bins wait_op = {OP_WAIT};
+        bins reset   = {OP_RESET};
+        bins branch  = {OP_BRANCH};
+        bins invalid = default;
+    }
+
+    command_class_cp: coverpoint sampled_command_class {
+        bins none    = {QC_CMD_CLASS_NONE};
+        bins gate    = {QC_CMD_CLASS_GATE};
+        bins measure = {QC_CMD_CLASS_MEASURE};
+        bins wait_op = {QC_CMD_CLASS_WAIT};
+        bins reset   = {QC_CMD_CLASS_RESET};
+        bins branch  = {QC_CMD_CLASS_BRANCH};
+        bins nop     = {QC_CMD_CLASS_NOP};
+        bins multi   = {QC_CMD_CLASS_MULTI};
+    }
+
+    opcode_x_command_class: cross opcode_cp, command_class_cp;
+endgroup
+```
+
+`QC_CMD_CLASS_MULTI` е defensive coverage bin. Ако някога повече от един command class bit е активен едновременно, scoreboard-ът трябва да даде грешка, а coverage моделът ще покаже, че е наблюдаван такъв случай.
+
+## Кодов фрагмент 3.32 – Measurement и feedback coverage
+
+Measurement coverage групата покрива request, response, result, result value и unexpected path. Feedback coverage групата покрива taken/not-taken, checked/unchecked condition, missing measurement и feedback value.
+
+```systemverilog
+covergroup measurement_cg with function sample();
+    option.per_instance = 1;
+
+    request_cp: coverpoint sampled_measure_request {
+        bins no_request = {0};
+        bins request    = {1};
+    }
+
+    response_cp: coverpoint sampled_measure_response {
+        bins no_response = {0};
+        bins response    = {1};
+    }
+
+    result_cp: coverpoint sampled_measure_result {
+        bins no_result = {0};
+        bins result    = {1};
+    }
+
+    response_x_value: cross response_cp, response_value_cp;
+    result_x_value:   cross result_cp, result_value_cp;
+endgroup
+
+covergroup feedback_cg with function sample();
+    option.per_instance = 1;
+
+    branch_taken_cp: coverpoint sampled_branch_taken {
+        bins not_taken = {0};
+        bins taken     = {1};
+    }
+
+    missing_measurement_cp: coverpoint sampled_missing_measurement {
+        bins present = {0};
+        bins missing = {1};
+    }
+
+    branch_outcome_x_condition: cross branch_taken_cp,
+                                      condition_checked_cp,
+                                      missing_measurement_cp;
+endgroup
+```
+
+Това покритие е пряко свързано с най-важните feedback сценарии в контролера: measurement result 0/1, branch taken/not-taken и conditional branch без наличен measurement резултат.
+
+## Кодов фрагмент 3.33 – Status, queue и busy coverage
+
+Status coverage групата следи stall/error/debug състоянията и ги комбинира с queue/busy състояния.
+
+```systemverilog
+covergroup status_cg with function sample();
+    option.per_instance = 1;
+
+    stall_cp: coverpoint sampled_scheduler_stall {
+        bins no_stall = {0};
+        bins stall    = {1};
+    }
+
+    illegal_instr_cp: coverpoint sampled_illegal_instr {
+        bins legal_path   = {0};
+        bins illegal_path = {1};
+    }
+
+    queue_count_cp: coverpoint sampled_queue_count {
+        bins empty        = {0};
+        bins non_empty    = {[1:3]};
+        bins full_or_more = {[4:16]};
+    }
+
+    busy_count_cp: coverpoint sampled_busy_count {
+        bins none = {0};
+        bins one  = {1};
+        bins few  = {[2:4]};
+        bins many = {[5:16]};
+    }
+
+    stall_x_queue: cross stall_cp, queue_count_cp;
+    stall_x_busy:  cross stall_cp, busy_count_cp;
+endgroup
+```
+
+Тези coverpoints ще бъдат полезни за бъдещата Глава 4, защото позволяват да се отчете дали regression тестовете реално са достигнали stall, queue pressure и multi-qubit busy състояния.
+
+## Кодов фрагмент 3.34 – Sampling dispatch
+
+`write()` методът избира кои covergroups да бъдат семплирани според observation kind-а.
+
+```systemverilog
+function void write(qc_observation_item t);
+    sample_common(t);
+    observation_cg.sample();
+
+    case (t.kind)
+        QC_OBS_INSTRUCTION,
+        QC_OBS_ISSUE: begin
+            instruction_samples++;
+            instruction_cg.sample();
+        end
+
+        QC_OBS_COMMAND: begin
+            command_samples++;
+            instruction_cg.sample();
+            command_cg.sample();
+        end
+
+        QC_OBS_MEASURE_REQUEST,
+        QC_OBS_MEASURE_RESPONSE,
+        QC_OBS_MEASURE_RESULT: begin
+            measurement_samples++;
+            measurement_cg.sample();
+        end
+
+        QC_OBS_FEEDBACK: begin
+            feedback_samples++;
+            feedback_cg.sample();
+        end
+
+        QC_OBS_STATUS: begin
+            status_samples++;
+            status_cg.sample();
+        end
+    endcase
+endfunction
+```
+
+## Как се проверява C6
+
+На този етап `qc_coverage.sv` е реализиран като UVM coverage subscriber, но още не е свързан в реална среда. Минималната текуща проверка е:
+
+```text
+1. `uvm/qc_uvm_pkg.sv` include-ва `qc_coverage.sv` след `qc_scoreboard.sv`.
+2. Coverage компонентът наследява `uvm_subscriber #(qc_observation_item)`.
+3. Covergroup-ите покриват opcode, flags, command class, measurement, feedback и status/queue/busy състояния.
+4. Няма claim за coverage процент или PASS UVM simulation, докато не се добавят agent/env/top и реален simulator run.
+```
 
 ---
 
@@ -1362,7 +1630,7 @@ uvm/tb_qc_uvm_top.sv
 
 и да стартира избран UVM test чрез `+UVM_TESTNAME=...`.
 
-Файловете `qc_sequence_item.sv`, `qc_observation_item.sv`, `qc_sequencer.sv`, `qc_sequences.sv`, `qc_driver.sv`, `qc_monitor.sv` и `qc_scoreboard.sv` се включват през `uvm/qc_uvm_pkg.sv`, затова run script-ът трябва да подаде правилен include path към директорията `uvm/`.
+Файловете `qc_sequence_item.sv`, `qc_observation_item.sv`, `qc_sequencer.sv`, `qc_sequences.sv`, `qc_driver.sv`, `qc_monitor.sv`, `qc_scoreboard.sv` и `qc_coverage.sv` се включват през `uvm/qc_uvm_pkg.sv`, затова run script-ът трябва да подаде правилен include path към директорията `uvm/`.
 
 ---
 
@@ -1404,8 +1672,8 @@ results/waveforms/
 
 Текущите ограничения са:
 
-1. Реализирани са UVM package, transaction/sequence item, observation item, sequencer, начални sequence класове, virtual interface, driver и monitor.
-2. Няма coverage collector, agent, env или executable UVM tests.
+1. Реализирани са UVM package, transaction/sequence item, observation item, sequencer, начални sequence класове, virtual interface, driver, monitor, scoreboard и coverage collector.
+2. Няма agent, env или executable UVM tests.
 3. DUT сигналите са описани в `qc_if.sv`, а monitor-ът ги наблюдава през `mon_cb`, но все още няма `tb_qc_uvm_top.sv`, който да инстанцира `quantum_controller_top` и да го свърже към interface-а.
 4. Няма UVM simulation script.
 5. Няма потвърден UVM simulator в PATH освен Verilator, който се използва за съществуващите non-UVM RTL testbench-и.
@@ -1442,20 +1710,23 @@ results/waveforms/
 Следващата реална стъпка по Phase C е:
 
 ```text
-C6: qc_coverage.sv
+C7: qc_agent.sv и qc_env.sv
 ```
 
 Препоръчителен ред:
 
-1. Създаване на `uvm/qc_coverage.sv`.
-2. Coverage компонентът трябва да бъде subscriber към `qc_observation_item` потока.
-3. Трябва да има covergroups за opcode, command class, flags, measurement request/result, feedback/branch, illegal/status и queue/busy състояния.
-4. Трябва да има cross coverage за `BRANCH × conditional/feedback/expected/result`, `MEASURE × result value`, `opcode × command class` и stall/queue scenarios.
-5. Обновяване на `uvm/qc_uvm_pkg.sv`, за да include-ва coverage компонента.
-6. Обновяване на този Markdown файл с реални code excerpts от coverage модела.
-7. Обновяване на `docs/AGENT_CONTEXT.md` с новия UVM статус.
+1. Създаване на `uvm/qc_agent.sv`.
+2. Agent-ът трябва да инстанцира sequencer, driver и monitor.
+3. Agent-ът трябва да свърже `driver.seq_item_port` към `sequencer.seq_item_export`.
+4. Agent-ът трябва да поддържа active/passive конфигурация, така че monitor-ът да може да се използва и самостоятелно.
+5. Създаване на `uvm/qc_env.sv`.
+6. Env-ът трябва да инстанцира agent, scoreboard и coverage.
+7. Env-ът трябва да свърже `monitor.analysis_port` към `scoreboard.analysis_export` и coverage analysis export-а.
+8. Обновяване на `uvm/qc_uvm_pkg.sv`, за да include-ва agent/env файловете.
+9. Обновяване на този Markdown файл с реални code excerpts.
+10. Обновяване на `docs/AGENT_CONTEXT.md` с новия UVM статус.
 
-След coverage трябва да се премине към `qc_agent.sv` и `qc_env.sv`, защото тогава driver, monitor, scoreboard и coverage ще могат да бъдат свързани в реална UVM среда.
+След agent/env трябва да се премине към `qc_base_test.sv`, executable test класове, `tb_qc_uvm_top.sv` и `scripts/run_uvm.sh`.
 
 ---
 

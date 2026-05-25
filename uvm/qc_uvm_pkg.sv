@@ -17,6 +17,7 @@ package qc_uvm_pkg;
     `include "qc_driver.sv"
     `include "qc_monitor.sv"
     `include "qc_scoreboard.sv"
+    `include "qc_coverage.sv"
 
 endpackage : qc_uvm_pkg
 
