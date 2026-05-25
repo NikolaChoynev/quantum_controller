@@ -86,6 +86,12 @@
 
 Не трябва да се добавя шумна временна информация, непотвърдени идеи или подробни дневници от всяка команда. Файлът трябва да остане кратък, стабилен и полезен за следващ агент.
 
+### 4.2 Правило за commits след работни стъпки
+
+След всяка завършена реална стъпка от работния план агентът трябва да направи Git commit със съответните промени, освен ако потребителят изрично не каже да не се commit-ва. Commit-ът трябва да включва само файловете, свързани с конкретната стъпка: код, тестове, скриптове и релевантни Markdown/context актуализации.
+
+Несвързани или вече съществуващи локални промени, например редакции по `docs/Дисертация.docx`, не трябва да се включват в commit без изрично потвърждение от потребителя.
+
 ---
 
 ## 5. Текущ RTL статус
@@ -399,9 +405,10 @@ uvm/qc_sequences.sv
 uvm/qc_if.sv
 uvm/qc_driver.sv
 uvm/qc_monitor.sv
+uvm/qc_scoreboard.sv
 ```
 
-`uvm/qc_uvm_pkg.sv` импортира `uvm_pkg`, включва `uvm_macros.svh`, импортира `qc_pkg` и включва `qc_sequence_item.sv`, `qc_observation_item.sv`, `qc_sequencer.sv`, `qc_sequences.sv`, `qc_driver.sv` и `qc_monitor.sv`. `uvm/qc_if.sv` не е include-нат в package-а, защото е SystemVerilog interface/design element и трябва да се компилира отделно преди UVM package-а.
+`uvm/qc_uvm_pkg.sv` импортира `uvm_pkg`, включва `uvm_macros.svh`, импортира `qc_pkg` и включва `qc_sequence_item.sv`, `qc_observation_item.sv`, `qc_sequencer.sv`, `qc_sequences.sv`, `qc_driver.sv`, `qc_monitor.sv` и `qc_scoreboard.sv`. `uvm/qc_if.sv` не е include-нат в package-а, защото е SystemVerilog interface/design element и трябва да се компилира отделно преди UVM package-а.
 
 `uvm/qc_sequence_item.sv` реализира `qc_sequence_item extends uvm_sequence_item`. Той използва реалните RTL параметри и типове от `rtl/qc_pkg.sv`: `qc_opcode_e`, `INSTR_W`, `QUBIT_ID_W`, `DURATION_W`, `FLAGS_W`, `RESERVED_W` и flag bit константите. Transaction item-ът съдържа opcode, target/control qubit, duration, flags, reserved, valid/invalid controls, raw override support и measurement response metadata. Добавени са helper функции `pack_raw()`, `update_raw()`, `load_raw()`, `to_fields()` и classification helpers за gate/measurement/branch инструкции.
 
@@ -422,12 +429,13 @@ uvm/qc_monitor.sv
 
 `uvm/qc_monitor.sv` реализира `qc_monitor extends uvm_monitor`. Monitor-ът взема `virtual qc_if` чрез `uvm_config_db`, наблюдава `mon_cb`, публикува `qc_observation_item` през `uvm_analysis_port #(qc_observation_item)` и покрива accepted instruction handshake, issue stage, command stage, measurement request, measurement response input, measurement result output, feedback/branch и status/debug събития. Status observation се публикува при error/stall флагове или при промяна на `queue_count_o`/`qubit_busy_o`.
 
-Важно: UVM компонентите все още не са изпълнявани срещу DUT като пълна UVM симулация, защото scoreboard, coverage, agent/env, UVM top-level testbench и run script още не са реализирани. Няма и потвърден UVM-capable simulator flow.
+`uvm/qc_scoreboard.sv` реализира `qc_scoreboard extends uvm_component`. Scoreboard-ът консумира `qc_observation_item` чрез `uvm_analysis_imp #(qc_observation_item, qc_scoreboard)`, поддържа очаквани FIFO опашки за accepted instruction → issue → command, проверява one-hot command classification за gate/measure/wait/reset/branch/nop, корелира measurement request → driver response → measurement result output, поддържа локален measurement state model за feedback checks и проверява branch taken/not-taken/missing-measurement поведение. Status checks покриват `illegal_instr`, `illegal_issue`, `unexpected_measurement_result`, queue depth и unknown `qubit_busy_o`.
+
+Важно: UVM компонентите все още не са изпълнявани срещу DUT като пълна UVM симулация, защото coverage, agent/env, UVM top-level testbench и run script още не са реализирани. Няма и потвърден UVM-capable simulator flow.
 
 Още не са реализирани:
 
 ```text
-uvm/qc_scoreboard.sv
 uvm/qc_coverage.sv
 uvm/qc_agent.sv
 uvm/qc_env.sv
@@ -438,18 +446,17 @@ scripts/run_uvm.sh
 
 Наличният локален simulator flow към момента е Verilator за non-UVM RTL testbench-и. `vlog/vsim`, `xrun` и `vcs` не са намерени в PATH при последната проверка. Затова новият UVM код все още не е стартиран като UVM симулация и не трябва да се твърди, че има UVM logs/waveforms/coverage резултати.
 
-Следващата непосредствена задача е Phase C5:
-
-```text
-uvm/qc_scoreboard.sv
-```
-
-Целта е scoreboard-ът да консумира `qc_observation_item` потока от monitor-а и да започне автоматичните reference checks за accepted instructions, command classification, measurement request/response/result корелация, feedback/branch решения, illegal paths и queue/backpressure поведение.
-
-След Phase C5 трябва да се продължи с:
+Следващата непосредствена задача е Phase C6:
 
 ```text
 uvm/qc_coverage.sv
+```
+
+Целта е coverage компонентът да консумира `qc_observation_item` потока от monitor-а и да събира functional coverage за opcode, command class, flags, measurement request/result, feedback/branch outcomes, illegal/status събития и queue/busy състояния.
+
+След Phase C6 трябва да се продължи с:
+
+```text
 uvm/qc_agent.sv
 uvm/qc_env.sv
 uvm/qc_base_test.sv

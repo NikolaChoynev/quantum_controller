@@ -16,6 +16,7 @@ package qc_uvm_pkg;
     `include "qc_sequences.sv"
     `include "qc_driver.sv"
     `include "qc_monitor.sv"
+    `include "qc_scoreboard.sv"
 
 endpackage : qc_uvm_pkg
 
