@@ -26,9 +26,11 @@ uvm/qc_driver.sv
 uvm/qc_monitor.sv
 uvm/qc_scoreboard.sv
 uvm/qc_coverage.sv
+uvm/qc_agent.sv
+uvm/qc_env.sv
 ```
 
-Все още не са реализирани UVM agent/environment, UVM tests или UVM top-level testbench. Sequencer-ът, sequence класовете, virtual interface-ът, driver-ът, monitor-ът, scoreboard-ът и coverage collector-ът вече съществуват като UVM код, но все още не са изпълнявани срещу DUT като пълна UVM симулация, защото липсват agent/env/test top и UVM-capable simulator flow.
+Все още не са реализирани UVM tests или UVM top-level testbench. Sequencer-ът, sequence класовете, virtual interface-ът, driver-ът, monitor-ът, scoreboard-ът, coverage collector-ът, agent-ът и env-ът вече съществуват като UVM код, но все още не са изпълнявани срещу DUT като пълна UVM симулация, защото липсват executable tests, test top и UVM-capable simulator flow.
 
 ---
 
@@ -38,11 +40,11 @@ uvm/qc_coverage.sv
 
 | № | Изисквана информация | Текущ статус | Къде се попълва |
 |---:|---|---|---|
-| 1 | Каква UVM среда е реализирана | Започната е UVM среда; налични са package, transaction item, observation item, sequencer, sequences, interface, driver, monitor, scoreboard и coverage | Раздели 3.2, 3.4 и 3.5 |
-| 2 | Кои файлове са създадени в `uvm/` | Създадени са `qc_uvm_pkg.sv`, `qc_sequence_item.sv`, `qc_observation_item.sv`, `qc_sequencer.sv`, `qc_sequences.sv`, `qc_if.sv`, `qc_driver.sv`, `qc_monitor.sv`, `qc_scoreboard.sv` и `qc_coverage.sv` | Раздел 3.2 |
+| 1 | Каква UVM среда е реализирана | Започната е UVM среда; налични са package, transaction item, observation item, sequencer, sequences, interface, driver, monitor, scoreboard, coverage, agent и env | Раздели 3.2, 3.4 и 3.5 |
+| 2 | Кои файлове са създадени в `uvm/` | Създадени са `qc_uvm_pkg.sv`, `qc_sequence_item.sv`, `qc_observation_item.sv`, `qc_sequencer.sv`, `qc_sequences.sv`, `qc_if.sv`, `qc_driver.sv`, `qc_monitor.sv`, `qc_scoreboard.sv`, `qc_coverage.sv`, `qc_agent.sv` и `qc_env.sv` | Раздел 3.2 |
 | 3 | Как DUT е свързан към testbench-а | Частично реализирано чрез `qc_if.sv`; top-level UVM testbench още предстои | Раздел 3.3 |
 | 4 | Какво съдържа transaction/sequence item | Реализирано в `uvm/qc_sequence_item.sv` | Раздел 3.4 |
-| 5 | Как работят sequencer, driver, monitor, scoreboard и coverage | Sequencer, sequences, driver, monitor, scoreboard и coverage са реализирани като отделни компоненти; agent/env свързването предстои | Раздел 3.5 |
+| 5 | Как работят sequencer, driver, monitor, scoreboard и coverage | Sequencer, sequences, driver, monitor, scoreboard и coverage са реализирани и свързани чрез agent/env | Раздел 3.5 |
 | 6 | Какви directed tests са реализирани | Има directed sequence класове; executable UVM tests още няма | Раздел 3.6.1 |
 | 7 | Какви constrained-random/stress tests са реализирани | Има random и dependency stress sequence класове; още не са изпълнявани | Раздел 3.6.2 |
 | 8 | Какви algorithmic workloads са реализирани | Има Bell, GHZ и Grover-like sequence класове; още не са изпълнявани | Раздел 3.6.3 |
@@ -72,7 +74,7 @@ UVM средата трябва да работи върху основната 
 4. Scoreboard-ът сравнява очакваното поведение с наблюдаваните DUT изходи.
 5. Coverage collector-ът отчита opcode покритие, flag комбинации, dependency/stall сценарии, measurement-feedback сценарии, branch taken/not-taken сценарии и queue/backpressure състояния.
 
-Към момента тази методология е заложена в плана, като реално имплементирани са transaction/sequence item слой, observation item слой, sequencer, начални sequence класове, virtual interface, driver, monitor, scoreboard и coverage collector. Следващият липсващ слой е UVM agent/environment, който трябва да свърже компонентите в executable UVM среда.
+Към момента тази методология е заложена в плана, като реално имплементирани са transaction/sequence item слой, observation item слой, sequencer, начални sequence класове, virtual interface, driver, monitor, scoreboard, coverage collector, agent и environment. Следващият липсващ слой е executable test/top/run flow, който трябва да стартира средата срещу `quantum_controller_top`.
 
 ---
 
@@ -92,12 +94,12 @@ UVM средата трябва да работи върху основната 
 | `uvm/qc_monitor.sv` | Реализиран | Passive UVM monitor, който публикува наблюдения през analysis port |
 | `uvm/qc_scoreboard.sv` | Реализиран | Reference checking компонент върху `qc_observation_item` потока |
 | `uvm/qc_coverage.sv` | Реализиран | Functional coverage subscriber върху `qc_observation_item` потока |
+| `uvm/qc_agent.sv` | Реализиран | UVM agent, който свързва sequencer, driver и monitor |
+| `uvm/qc_env.sv` | Реализиран | UVM environment, който свързва agent, scoreboard и coverage |
 
 Все още не са създадени:
 
 ```text
-uvm/qc_agent.sv
-uvm/qc_env.sv
 uvm/qc_base_test.sv
 uvm/qc_directed_tests.sv
 uvm/qc_random_tests.sv
@@ -126,6 +128,8 @@ package qc_uvm_pkg;
     `include "qc_monitor.sv"
     `include "qc_scoreboard.sv"
     `include "qc_coverage.sv"
+    `include "qc_agent.sv"
+    `include "qc_env.sv"
 
 endpackage : qc_uvm_pkg
 ```
@@ -217,7 +221,7 @@ qc_sequence_item
 → scoreboard + coverage
 ```
 
-SystemVerilog interface-ът, driver-ът, monitor-ът, scoreboard-ът и coverage collector-ът вече са реализирани. Следващата стъпка е UVM agent/env слой, който да свърже driver-а със sequencer-а, monitor-а, scoreboard-а и coverage collector-а.
+SystemVerilog interface-ът, driver-ът, monitor-ът, scoreboard-ът, coverage collector-ът и UVM agent/env слой вече са реализирани. Следващата стъпка е base test, executable tests и top-level testbench, които да стартират средата срещу DUT.
 
 ## Кодов фрагмент 3.3 – Основни DUT сигнали в `qc_if.sv`
 
@@ -462,7 +466,7 @@ constraint measurement_response_c {
 
 # 3.5 UVM компоненти за stimulus generation, driving, observation и checking
 
-Този раздел описва реализираните stimulus generation, driver, monitor, scoreboard и coverage компоненти, както и следващите планирани UVM блокове. Към момента sequencer-ът, sequence класовете, virtual interface-ът, driver-ът, monitor-ът, scoreboard-ът и coverage collector-ът са реализирани, но agent, environment и executable UVM tests все още предстоят.
+Този раздел описва реализираните stimulus generation, driver, monitor, scoreboard, coverage, agent и env компоненти, както и следващите планирани UVM блокове. Към момента sequencer-ът, sequence класовете, virtual interface-ът, driver-ът, monitor-ът, scoreboard-ът, coverage collector-ът, agent-ът и env-ът са реализирани, но executable UVM tests и top-level UVM testbench все още предстоят.
 
 ## 3.5.1 Sequencer
 
@@ -498,7 +502,7 @@ endclass : qc_sequencer
 uvm/qc_sequences.sv
 ```
 
-Файлът `uvm/qc_sequences.sv` съдържа базов sequence клас и набор от начални directed, constrained-random, stress и algorithmic sequences. Тези класове генерират `qc_sequence_item` обекти, но още не са изпълнявани срещу DUT, защото UVM agent, environment и testbench top още не са реализирани.
+Файлът `uvm/qc_sequences.sv` съдържа базов sequence клас и набор от начални directed, constrained-random, stress и algorithmic sequences. Тези класове генерират `qc_sequence_item` обекти, но още не са изпълнявани срещу DUT, защото UVM test classes и testbench top още не са реализирани.
 
 | Sequence class | Статус | Цел |
 |---|---|---|
@@ -648,7 +652,7 @@ Driver-ът вече:
 4. Активира `instr_valid_i` според ready/valid протокола.
 5. При measurement transaction изчаква `measure_request_valid_o`, след което подава `measurement_result_valid_i` и `measurement_result_i` след `measurement_latency_cycles`.
 
-Driver-ът получава virtual interface чрез `uvm_config_db`. Това означава, че бъдещите `qc_agent`, `qc_env` и `tb_qc_uvm_top` трябва да зададат `vif` към `qc_driver` преди стартиране на теста.
+Driver-ът получава virtual interface чрез `uvm_config_db`. Реализираният `qc_agent` вече може да получи `vif` и да го препрати към driver-а и monitor-а; бъдещият `tb_qc_uvm_top` и base test трябва да зададат този interface преди стартиране на теста.
 
 ## Кодов фрагмент 3.16 – Driver build/run phase
 
@@ -826,7 +830,7 @@ class qc_monitor extends uvm_monitor;
     endfunction
 ```
 
-Това е същият `vif` pattern като при driver-а. Бъдещият `qc_agent` трябва да зададе един и същ virtual interface към driver-а и monitor-а, а monitor-ът ще подава наблюденията към scoreboard и coverage чрез `analysis_port`.
+Това е същият `vif` pattern като при driver-а. Реализираният `qc_agent` задава един и същ virtual interface към driver-а и monitor-а, а monitor-ът подава наблюденията към scoreboard и coverage чрез `analysis_port`.
 
 ## Кодов фрагмент 3.21 – Основен monitor sampling loop
 
@@ -913,7 +917,7 @@ Status observation-ът не се публикува само при error фл�
 4. Няма claim за PASS UVM simulation, докато не се добавят agent/env/top и реален simulator run.
 ```
 
-Следващата практическа проверка трябва да стане при добавяне на `qc_agent.sv` и `qc_env.sv`, където `monitor.analysis_port` ще бъде свързан към scoreboard и coverage subscribers.
+След C7 `qc_agent.sv` и `qc_env.sv` вече свързват `monitor.analysis_port` към scoreboard и coverage subscribers. Реалната практическа проверка остава бъдещ UVM run с base test и top-level testbench.
 
 ## 3.5.5 Scoreboard
 
@@ -947,7 +951,7 @@ qc_monitor
 | Missing measurement | Conditional branch без measurement трябва да активира `missing_measurement_o` |
 | Queue/backpressure | Queue count и stall поведение трябва да останат консистентни |
 
-Scoreboard-ът е консервативен: той проверява причинно-следствени отношения между наблюдавани събития, но не твърди пълна cycle-accurate симулация на scheduler-а. Това е правилно за текущия етап, защото agent/env/top още липсват и UVM средата все още не е пускана в реален simulator.
+Scoreboard-ът е консервативен: той проверява причинно-следствени отношения между наблюдавани събития, но не твърди пълна cycle-accurate симулация на scheduler-а. Това е правилно за текущия етап, защото top-level testbench и executable UVM tests още липсват и UVM средата все още не е пускана в реален simulator.
 
 ## Кодов фрагмент 3.23 – Scoreboard analysis вход
 
@@ -1210,7 +1214,7 @@ endfunction
 5. Няма claim за PASS UVM simulation, докато не се добавят agent/env/top и реален simulator run.
 ```
 
-След C6 следва `qc_agent.sv` и `qc_env.sv`, където `monitor.analysis_port` ще се свърже към `scoreboard.analysis_export` и coverage subscriber-а.
+След C7 `qc_agent.sv` и `qc_env.sv` вече свързват `monitor.analysis_port` към `scoreboard.analysis_export` и coverage subscriber-а.
 
 ## 3.5.6 Coverage
 
@@ -1502,13 +1506,171 @@ endfunction
 4. Няма claim за coverage процент или PASS UVM simulation, докато не се добавят agent/env/top и реален simulator run.
 ```
 
+## 3.5.7 Agent и Environment
+
+Реализирани файлове:
+
+```text
+uvm/qc_agent.sv
+uvm/qc_env.sv
+```
+
+C7 добавя първото реално UVM свързване между вече написаните компоненти. До този момент sequencer, driver, monitor, scoreboard и coverage съществуваха като отделни класове. След C7 те вече са организирани в стандартна UVM agent/env структура:
+
+```text
+qc_env
+→ qc_agent
+  → qc_sequencer
+  → qc_driver
+  → qc_monitor
+→ qc_scoreboard
+→ qc_coverage
+```
+
+`qc_agent` е active/passive компонент. В active режим той създава sequencer, driver и monitor и свързва `driver.seq_item_port` към `sequencer.seq_item_export`. В passive режим се създава само monitor, което позволява бъдещо наблюдение без stimulus driving.
+
+`qc_env` създава agent, scoreboard и coverage, след което свързва monitor analysis stream-а към checking и coverage компонентите.
+
+## Кодов фрагмент 3.35 – Agent build и active/passive режим
+
+От `uvm/qc_agent.sv`:
+
+```systemverilog
+class qc_agent extends uvm_agent;
+
+    qc_sequencer sequencer;
+    qc_driver    driver;
+    qc_monitor   monitor;
+
+    virtual qc_if vif;
+    bit           has_vif;
+
+    `uvm_component_utils(qc_agent)
+
+    function new(string name = "qc_agent", uvm_component parent = null);
+        super.new(name, parent);
+        is_active = UVM_ACTIVE;
+    endfunction
+
+    function void build_phase(uvm_phase phase);
+        super.build_phase(phase);
+
+        void'(uvm_config_db #(uvm_active_passive_enum)::get(
+            this,
+            "",
+            "is_active",
+            is_active
+        ));
+
+        has_vif = uvm_config_db #(virtual qc_if)::get(this, "", "vif", vif);
+```
+
+Agent-ът може да получи `vif` чрез `uvm_config_db`. Ако interface-ът е зададен на agent ниво, agent-ът го препраща към driver-а и monitor-а. Това намалява нуждата test класовете да задават `vif` към всеки child компонент поотделно.
+
+## Кодов фрагмент 3.36 – Agent component creation и sequencer-driver връзка
+
+```systemverilog
+        monitor = qc_monitor::type_id::create("monitor", this);
+
+        if (is_active == UVM_ACTIVE) begin
+            sequencer = qc_sequencer::type_id::create("sequencer", this);
+            driver    = qc_driver::type_id::create("driver", this);
+        end
+    endfunction
+
+    function void connect_phase(uvm_phase phase);
+        super.connect_phase(phase);
+
+        if (is_active == UVM_ACTIVE) begin
+            driver.seq_item_port.connect(sequencer.seq_item_export);
+        end
+    endfunction
+```
+
+Това е ключовата UVM stimulus връзка: sequence класовете ще стартират върху `agent.sequencer`, а driver-ът ще получава `qc_sequence_item` през стандартния UVM `seq_item_port`.
+
+## Кодов фрагмент 3.37 – Environment build
+
+От `uvm/qc_env.sv`:
+
+```systemverilog
+class qc_env extends uvm_env;
+
+    qc_agent      agent;
+    qc_scoreboard scoreboard;
+    qc_coverage   coverage;
+
+    bit enable_scoreboard = 1'b1;
+    bit enable_coverage   = 1'b1;
+
+    `uvm_component_utils(qc_env)
+
+    function void build_phase(uvm_phase phase);
+        super.build_phase(phase);
+
+        agent = qc_agent::type_id::create("agent", this);
+
+        if (enable_scoreboard) begin
+            scoreboard = qc_scoreboard::type_id::create("scoreboard", this);
+        end
+
+        if (enable_coverage) begin
+            coverage = qc_coverage::type_id::create("coverage", this);
+        end
+    endfunction
+```
+
+Env-ът има конфигурационни флагове `enable_scoreboard` и `enable_coverage`, за да могат бъдещи smoke/debug тестове временно да изключват checking или coverage, ако това е нужно при bring-up.
+
+## Кодов фрагмент 3.38 – Environment analysis връзки
+
+```systemverilog
+function void connect_phase(uvm_phase phase);
+    super.connect_phase(phase);
+
+    if (enable_scoreboard) begin
+        agent.monitor.analysis_port.connect(scoreboard.analysis_export);
+    end
+
+    if (enable_coverage) begin
+        agent.monitor.analysis_port.connect(coverage.analysis_export);
+    end
+endfunction
+```
+
+Тази връзка затваря основния observation/checking/coverage път:
+
+```text
+DUT signals
+→ qc_if.mon_cb
+→ qc_monitor
+→ qc_observation_item
+→ qc_scoreboard
+→ qc_coverage
+```
+
+След C7 UVM средата вече има структурно свързан active agent и environment. Все още липсва `qc_base_test.sv`, test classes и `tb_qc_uvm_top.sv`, затова средата не е изпълнявана като UVM симулация.
+
+## Как се проверява C7
+
+Минималната текуща проверка е:
+
+```text
+1. `uvm/qc_uvm_pkg.sv` include-ва `qc_agent.sv` и `qc_env.sv`.
+2. `qc_agent.sv` създава monitor винаги, а sequencer/driver само в active режим.
+3. `qc_agent.sv` свързва `driver.seq_item_port` към `sequencer.seq_item_export`.
+4. `qc_env.sv` създава agent, scoreboard и coverage.
+5. `qc_env.sv` свързва monitor analysis port-а към scoreboard и coverage.
+6. Няма claim за PASS UVM simulation, докато не се добавят base test, top и run script.
+```
+
 ---
 
 # 3.6 Test plan
 
 ## 3.6.1 Directed tests
 
-Все още няма executable UVM directed tests, защото липсват UVM environment, test top и run script. Вече има реализирани directed sequence класове в `uvm/qc_sequences.sv` и driver в `uvm/qc_driver.sv`, които ще бъдат използвани от бъдещите UVM tests.
+Все още няма executable UVM directed tests, защото липсват UVM test classes, top-level UVM testbench и run script. Вече има реализирани directed sequence класове, driver, monitor, scoreboard, coverage, agent и env, които ще бъдат използвани от бъдещите UVM tests.
 
 Като functional baseline съществуват Verilator testbench-и в `tb/`, включително:
 
@@ -1630,7 +1792,7 @@ uvm/tb_qc_uvm_top.sv
 
 и да стартира избран UVM test чрез `+UVM_TESTNAME=...`.
 
-Файловете `qc_sequence_item.sv`, `qc_observation_item.sv`, `qc_sequencer.sv`, `qc_sequences.sv`, `qc_driver.sv`, `qc_monitor.sv`, `qc_scoreboard.sv` и `qc_coverage.sv` се включват през `uvm/qc_uvm_pkg.sv`, затова run script-ът трябва да подаде правилен include path към директорията `uvm/`.
+Файловете `qc_sequence_item.sv`, `qc_observation_item.sv`, `qc_sequencer.sv`, `qc_sequences.sv`, `qc_driver.sv`, `qc_monitor.sv`, `qc_scoreboard.sv`, `qc_coverage.sv`, `qc_agent.sv` и `qc_env.sv` се включват през `uvm/qc_uvm_pkg.sv`, затова run script-ът трябва да подаде правилен include path към директорията `uvm/`.
 
 ---
 
@@ -1672,9 +1834,9 @@ results/waveforms/
 
 Текущите ограничения са:
 
-1. Реализирани са UVM package, transaction/sequence item, observation item, sequencer, начални sequence класове, virtual interface, driver, monitor, scoreboard и coverage collector.
-2. Няма agent, env или executable UVM tests.
-3. DUT сигналите са описани в `qc_if.sv`, а monitor-ът ги наблюдава през `mon_cb`, но все още няма `tb_qc_uvm_top.sv`, който да инстанцира `quantum_controller_top` и да го свърже към interface-а.
+1. Реализирани са UVM package, transaction/sequence item, observation item, sequencer, начални sequence класове, virtual interface, driver, monitor, scoreboard, coverage collector, agent и env.
+2. Няма executable UVM tests.
+3. DUT сигналите са описани в `qc_if.sv`, а agent/env слоят вече свързва UVM компонентите, но все още няма `tb_qc_uvm_top.sv`, който да инстанцира `quantum_controller_top` и да го свърже към interface-а.
 4. Няма UVM simulation script.
 5. Няма потвърден UVM simulator в PATH освен Verilator, който се използва за съществуващите non-UVM RTL testbench-и.
 6. Няма UVM logs, UVM waveforms или UVM coverage reports.
@@ -1710,23 +1872,19 @@ results/waveforms/
 Следващата реална стъпка по Phase C е:
 
 ```text
-C7: qc_agent.sv и qc_env.sv
+C8: qc_base_test.sv и executable UVM tests
 ```
 
 Препоръчителен ред:
 
-1. Създаване на `uvm/qc_agent.sv`.
-2. Agent-ът трябва да инстанцира sequencer, driver и monitor.
-3. Agent-ът трябва да свърже `driver.seq_item_port` към `sequencer.seq_item_export`.
-4. Agent-ът трябва да поддържа active/passive конфигурация, така че monitor-ът да може да се използва и самостоятелно.
-5. Създаване на `uvm/qc_env.sv`.
-6. Env-ът трябва да инстанцира agent, scoreboard и coverage.
-7. Env-ът трябва да свърже `monitor.analysis_port` към `scoreboard.analysis_export` и coverage analysis export-а.
-8. Обновяване на `uvm/qc_uvm_pkg.sv`, за да include-ва agent/env файловете.
-9. Обновяване на този Markdown файл с реални code excerpts.
-10. Обновяване на `docs/AGENT_CONTEXT.md` с новия UVM статус.
-
-След agent/env трябва да се премине към `qc_base_test.sv`, executable test класове, `tb_qc_uvm_top.sv` и `scripts/run_uvm.sh`.
+1. Създаване на `uvm/qc_base_test.sv`.
+2. Base test-ът трябва да създава `qc_env`.
+3. Base test-ът трябва да задава `vif` към `env.agent` чрез `uvm_config_db`.
+4. Base test-ът трябва да управлява objections и drain time.
+5. Създаване на directed test класове, които стартират `qc_smoke_sequence`, `qc_single_gate_sequence`, `qc_measure_sequence`, `qc_branch_sequence` и `qc_invalid_opcode_sequence`.
+6. По-късно добавяне на random/stress/algorithmic test класове.
+7. След test класовете трябва да се създаде `uvm/tb_qc_uvm_top.sv`, който инстанцира `quantum_controller_top`, `qc_if` и стартира `run_test()`.
+8. Накрая трябва да се добави `scripts/run_uvm.sh` за избрания UVM-capable simulator.
 
 ---
 

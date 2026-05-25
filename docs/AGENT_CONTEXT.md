@@ -407,9 +407,11 @@ uvm/qc_driver.sv
 uvm/qc_monitor.sv
 uvm/qc_scoreboard.sv
 uvm/qc_coverage.sv
+uvm/qc_agent.sv
+uvm/qc_env.sv
 ```
 
-`uvm/qc_uvm_pkg.sv` импортира `uvm_pkg`, включва `uvm_macros.svh`, импортира `qc_pkg` и включва `qc_sequence_item.sv`, `qc_observation_item.sv`, `qc_sequencer.sv`, `qc_sequences.sv`, `qc_driver.sv`, `qc_monitor.sv`, `qc_scoreboard.sv` и `qc_coverage.sv`. `uvm/qc_if.sv` не е include-нат в package-а, защото е SystemVerilog interface/design element и трябва да се компилира отделно преди UVM package-а.
+`uvm/qc_uvm_pkg.sv` импортира `uvm_pkg`, включва `uvm_macros.svh`, импортира `qc_pkg` и включва `qc_sequence_item.sv`, `qc_observation_item.sv`, `qc_sequencer.sv`, `qc_sequences.sv`, `qc_driver.sv`, `qc_monitor.sv`, `qc_scoreboard.sv`, `qc_coverage.sv`, `qc_agent.sv` и `qc_env.sv`. `uvm/qc_if.sv` не е include-нат в package-а, защото е SystemVerilog interface/design element и трябва да се компилира отделно преди UVM package-а.
 
 `uvm/qc_sequence_item.sv` реализира `qc_sequence_item extends uvm_sequence_item`. Той използва реалните RTL параметри и типове от `rtl/qc_pkg.sv`: `qc_opcode_e`, `INSTR_W`, `QUBIT_ID_W`, `DURATION_W`, `FLAGS_W`, `RESERVED_W` и flag bit константите. Transaction item-ът съдържа opcode, target/control qubit, duration, flags, reserved, valid/invalid controls, raw override support и measurement response metadata. Добавени са helper функции `pack_raw()`, `update_raw()`, `load_raw()`, `to_fields()` и classification helpers за gate/measurement/branch инструкции.
 
@@ -434,13 +436,15 @@ uvm/qc_coverage.sv
 
 `uvm/qc_coverage.sv` реализира `qc_coverage extends uvm_subscriber #(qc_observation_item)`. Coverage компонентът дефинира covergroups за observation kind, opcode, valid/conditional/feedback/expected flags, opcode × flags, command class, opcode × command class, measurement request/response/result/value/busy/unexpected path, feedback branch taken/not-taken/condition/missing measurement/value, scheduler stall, illegal/status, queue count и busy qubit count. Coverage моделът не твърди coverage процент, докато няма реален UVM run.
 
-Важно: UVM компонентите все още не са изпълнявани срещу DUT като пълна UVM симулация, защото agent/env, UVM top-level testbench и run script още не са реализирани. Няма и потвърден UVM-capable simulator flow.
+`uvm/qc_agent.sv` реализира `qc_agent extends uvm_agent`. Agent-ът създава monitor винаги, а sequencer и driver само в `UVM_ACTIVE` режим. Той може да получи `virtual qc_if` чрез `uvm_config_db` и да го препрати към driver-а и monitor-а. В `connect_phase` свързва `driver.seq_item_port` към `sequencer.seq_item_export`.
+
+`uvm/qc_env.sv` реализира `qc_env extends uvm_env`. Env-ът създава agent, scoreboard и coverage и свързва `agent.monitor.analysis_port` към `scoreboard.analysis_export` и `coverage.analysis_export`. Има `enable_scoreboard` и `enable_coverage` конфигурационни флагове за бъдещ debug/bring-up.
+
+Важно: UVM компонентите все още не са изпълнявани срещу DUT като пълна UVM симулация, защото UVM base test, top-level testbench и run script още не са реализирани. Няма и потвърден UVM-capable simulator flow.
 
 Още не са реализирани:
 
 ```text
-uvm/qc_agent.sv
-uvm/qc_env.sv
 uvm/qc_base_test.sv
 uvm/tb_qc_uvm_top.sv
 scripts/run_uvm.sh
@@ -448,19 +452,18 @@ scripts/run_uvm.sh
 
 Наличният локален simulator flow към момента е Verilator за non-UVM RTL testbench-и. `vlog/vsim`, `xrun` и `vcs` не са намерени в PATH при последната проверка. Затова новият UVM код все още не е стартиран като UVM симулация и не трябва да се твърди, че има UVM logs/waveforms/coverage резултати.
 
-Следващата непосредствена задача е Phase C7:
-
-```text
-uvm/qc_agent.sv
-uvm/qc_env.sv
-```
-
-Целта е agent/env слоят да свърже sequencer, driver, monitor, scoreboard и coverage в една UVM среда. Agent-ът трябва да свърже `driver.seq_item_port` към `sequencer.seq_item_export`, а env-ът трябва да свърже `monitor.analysis_port` към `scoreboard.analysis_export` и coverage subscriber-а.
-
-След Phase C7 трябва да се продължи с:
+Следващата непосредствена задача е Phase C8:
 
 ```text
 uvm/qc_base_test.sv
+uvm/qc_directed_tests.sv
+```
+
+Целта е base test слоят да създаде `qc_env`, да зададе `vif` към `env.agent`, да управлява UVM objections и да стартира конкретни sequence класове върху `env.agent.sequencer`. Directed tests трябва да обвият smoke, single-gate, measure, branch и invalid opcode sequences.
+
+След Phase C8 трябва да се продължи с:
+
+```text
 uvm/tb_qc_uvm_top.sv
 scripts/run_uvm.sh
 ```

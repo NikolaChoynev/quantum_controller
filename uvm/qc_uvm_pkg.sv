@@ -18,6 +18,8 @@ package qc_uvm_pkg;
     `include "qc_monitor.sv"
     `include "qc_scoreboard.sv"
     `include "qc_coverage.sv"
+    `include "qc_agent.sv"
+    `include "qc_env.sv"
 
 endpackage : qc_uvm_pkg
 
