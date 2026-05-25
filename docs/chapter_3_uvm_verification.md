@@ -28,9 +28,13 @@ uvm/qc_scoreboard.sv
 uvm/qc_coverage.sv
 uvm/qc_agent.sv
 uvm/qc_env.sv
+uvm/qc_base_test.sv
+uvm/qc_directed_tests.sv
+uvm/qc_random_tests.sv
+uvm/qc_algorithmic_tests.sv
 ```
 
-Все още не са реализирани UVM tests или UVM top-level testbench. Sequencer-ът, sequence класовете, virtual interface-ът, driver-ът, monitor-ът, scoreboard-ът, coverage collector-ът, agent-ът и env-ът вече съществуват като UVM код, но все още не са изпълнявани срещу DUT като пълна UVM симулация, защото липсват executable tests, test top и UVM-capable simulator flow.
+Все още не е реализиран UVM top-level testbench. Sequencer-ът, sequence класовете, virtual interface-ът, driver-ът, monitor-ът, scoreboard-ът, coverage collector-ът, agent-ът, env-ът и executable test класовете вече съществуват като UVM код, но все още не са изпълнявани срещу DUT като пълна UVM симулация, защото липсват test top и UVM-capable simulator flow.
 
 ---
 
@@ -40,14 +44,14 @@ uvm/qc_env.sv
 
 | № | Изисквана информация | Текущ статус | Къде се попълва |
 |---:|---|---|---|
-| 1 | Каква UVM среда е реализирана | Започната е UVM среда; налични са package, transaction item, observation item, sequencer, sequences, interface, driver, monitor, scoreboard, coverage, agent и env | Раздели 3.2, 3.4 и 3.5 |
-| 2 | Кои файлове са създадени в `uvm/` | Създадени са `qc_uvm_pkg.sv`, `qc_sequence_item.sv`, `qc_observation_item.sv`, `qc_sequencer.sv`, `qc_sequences.sv`, `qc_if.sv`, `qc_driver.sv`, `qc_monitor.sv`, `qc_scoreboard.sv`, `qc_coverage.sv`, `qc_agent.sv` и `qc_env.sv` | Раздел 3.2 |
+| 1 | Каква UVM среда е реализирана | Налични са package, transaction item, observation item, sequencer, sequences, interface, driver, monitor, scoreboard, coverage, agent, env и test класове | Раздели 3.2, 3.4, 3.5 и 3.6 |
+| 2 | Кои файлове са създадени в `uvm/` | Създадени са `qc_uvm_pkg.sv`, `qc_sequence_item.sv`, `qc_observation_item.sv`, `qc_sequencer.sv`, `qc_sequences.sv`, `qc_if.sv`, `qc_driver.sv`, `qc_monitor.sv`, `qc_scoreboard.sv`, `qc_coverage.sv`, `qc_agent.sv`, `qc_env.sv`, `qc_base_test.sv`, `qc_directed_tests.sv`, `qc_random_tests.sv` и `qc_algorithmic_tests.sv` | Раздел 3.2 |
 | 3 | Как DUT е свързан към testbench-а | Частично реализирано чрез `qc_if.sv`; top-level UVM testbench още предстои | Раздел 3.3 |
 | 4 | Какво съдържа transaction/sequence item | Реализирано в `uvm/qc_sequence_item.sv` | Раздел 3.4 |
 | 5 | Как работят sequencer, driver, monitor, scoreboard и coverage | Sequencer, sequences, driver, monitor, scoreboard и coverage са реализирани и свързани чрез agent/env | Раздел 3.5 |
-| 6 | Какви directed tests са реализирани | Има directed sequence класове; executable UVM tests още няма | Раздел 3.6.1 |
-| 7 | Какви constrained-random/stress tests са реализирани | Има random и dependency stress sequence класове; още не са изпълнявани | Раздел 3.6.2 |
-| 8 | Какви algorithmic workloads са реализирани | Има Bell, GHZ и Grover-like sequence класове; още не са изпълнявани | Раздел 3.6.3 |
+| 6 | Какви directed tests са реализирани | Има directed sequence класове и executable directed UVM test класове | Раздел 3.6.1 |
+| 7 | Какви constrained-random/stress tests са реализирани | Има random/stress sequence класове и executable random/stress UVM test класове; още не са изпълнявани | Раздел 3.6.2 |
+| 8 | Какви algorithmic workloads са реализирани | Има Bell, GHZ и Grover-like sequence класове и executable algorithmic UVM test класове; още не са изпълнявани | Раздел 3.6.3 |
 | 9 | Как се пускат симулациите | RTL baseline се пуска с `scripts/run_verilator.sh`; UVM simulation script още не е реализиран | Раздел 3.7 |
 | 10 | Какви log/waveform/coverage резултати има | Налични са RTL Verilator logs/waves; UVM logs/waves/coverage още няма | Раздел 3.8 |
 | 11 | Какви ограничения има текущата UVM среда | Описани са текущите ограничения и toolchain липси | Раздел 3.9 |
@@ -96,6 +100,10 @@ UVM средата трябва да работи върху основната 
 | `uvm/qc_coverage.sv` | Реализиран | Functional coverage subscriber върху `qc_observation_item` потока |
 | `uvm/qc_agent.sv` | Реализиран | UVM agent, който свързва sequencer, driver и monitor |
 | `uvm/qc_env.sv` | Реализиран | UVM environment, който свързва agent, scoreboard и coverage |
+| `uvm/qc_base_test.sv` | Реализиран | Base UVM test, който създава env, задава `vif` и управлява objections/drain |
+| `uvm/qc_directed_tests.sv` | Реализиран | Directed executable UVM tests |
+| `uvm/qc_random_tests.sv` | Реализиран | Random и dependency stress executable UVM tests |
+| `uvm/qc_algorithmic_tests.sv` | Реализиран | Bell, GHZ и Grover-like executable UVM tests |
 
 Все още не са създадени:
 
@@ -130,6 +138,10 @@ package qc_uvm_pkg;
     `include "qc_coverage.sv"
     `include "qc_agent.sv"
     `include "qc_env.sv"
+    `include "qc_base_test.sv"
+    `include "qc_directed_tests.sv"
+    `include "qc_random_tests.sv"
+    `include "qc_algorithmic_tests.sv"
 
 endpackage : qc_uvm_pkg
 ```
@@ -1670,7 +1682,66 @@ DUT signals
 
 ## 3.6.1 Directed tests
 
-Все още няма executable UVM directed tests, защото липсват UVM test classes, top-level UVM testbench и run script. Вече има реализирани directed sequence класове, driver, monitor, scoreboard, coverage, agent и env, които ще бъдат използвани от бъдещите UVM tests.
+Вече са реализирани executable UVM directed test класове. Те наследяват `qc_base_test`, създават конкретен sequence и го стартират върху `env.agent.sequencer`. Все още не са изпълнявани, защото липсват top-level UVM testbench, run script и потвърден UVM-capable simulator.
+
+## Кодов фрагмент 3.39 – Base test
+
+От `uvm/qc_base_test.sv`:
+
+```systemverilog
+class qc_base_test extends uvm_test;
+
+    qc_env        env;
+    virtual qc_if vif;
+
+    int unsigned drain_cycles = 64;
+
+    `uvm_component_utils(qc_base_test)
+
+    function void build_phase(uvm_phase phase);
+        super.build_phase(phase);
+
+        if (!uvm_config_db #(virtual qc_if)::get(this, "", "vif", vif)) begin
+            `uvm_fatal(get_type_name(), "Virtual interface 'vif' was not provided")
+        end
+
+        uvm_config_db #(virtual qc_if)::set(this, "env.agent", "vif", vif);
+
+        env = qc_env::type_id::create("env", this);
+    endfunction
+
+    task run_phase(uvm_phase phase);
+        phase.raise_objection(this);
+
+        run_test_sequence();
+        drain_pipeline();
+
+        phase.drop_objection(this);
+    endtask
+```
+
+Base test-ът е обща основа за всички executable tests. Той получава virtual interface-а от top-level testbench-а, препраща го към `env.agent`, създава `qc_env` и управлява UVM objections. Методът `run_test_sequence()` е virtual hook, който конкретните test класове override-ват.
+
+## Кодов фрагмент 3.40 – Directed test wrapper
+
+От `uvm/qc_directed_tests.sv`:
+
+```systemverilog
+class qc_smoke_test extends qc_base_test;
+
+    `uvm_component_utils(qc_smoke_test)
+
+    virtual task run_test_sequence();
+        qc_smoke_sequence seq;
+
+        seq = qc_smoke_sequence::type_id::create("seq");
+        seq.start(env.agent.sequencer);
+    endtask
+
+endclass : qc_smoke_test
+```
+
+Всички directed tests следват същия модел: test класът избира sequence, създава го чрез UVM factory и го стартира върху agent sequencer-а.
 
 Като functional baseline съществуват Verilator testbench-и в `tb/`, включително:
 
@@ -1688,30 +1759,56 @@ tb/tb_quantum_controller_top.sv
 
 Те не са UVM tests и не трябва да се описват като такива. Тяхната роля за Глава 3 е да служат като източник на directed сценарии, които трябва да бъдат прехвърлени в UVM sequences.
 
-Текущите directed sequence класове покриват следните сценарии:
+Текущите directed tests покриват следните сценарии:
 
-| Sequence | Покрит сценарий |
-|---|---|
-| `qc_smoke_sequence` | H → MEASURE → conditional BRANCH |
-| `qc_single_gate_sequence` | H, X и Z |
-| `qc_cnot_sequence` | H + CNOT |
-| `qc_measure_sequence` | MEASURE с measurement response metadata |
-| `qc_wait_sequence` | WAIT между две gate операции |
-| `qc_branch_sequence` | MEASURE + conditional branch + по-млада инструкция |
-| `qc_invalid_opcode_sequence` | Raw invalid opcode |
+| Test | Sequence | Покрит сценарий |
+|---|---|---|
+| `qc_smoke_test` | `qc_smoke_sequence` | H → MEASURE → conditional BRANCH |
+| `qc_single_gate_test` | `qc_single_gate_sequence` | H, X и Z |
+| `qc_cnot_test` | `qc_cnot_sequence` | H + CNOT |
+| `qc_measure_test` | `qc_measure_sequence` | MEASURE с measurement response metadata |
+| `qc_wait_test` | `qc_wait_sequence` | WAIT между две gate операции |
+| `qc_branch_test` | `qc_branch_sequence` | MEASURE + conditional branch + по-млада инструкция |
+| `qc_invalid_opcode_test` | `qc_invalid_opcode_sequence` | Raw invalid opcode |
 
-След добавяне на agent/env, UVM test класове и top-level testbench тези sequence класове трябва да бъдат обвити в executable UVM tests, например `qc_smoke_test`, `qc_single_gate_test`, `qc_measure_test`, `qc_branch_test` и `qc_invalid_opcode_test`.
+Подробният test plan за тези тестове е отделен в:
+
+```text
+docs/chapter_3_uvm_test_plan.tpl.md
+```
 
 ## 3.6.2 Constrained-random и stress tests
 
-Все още няма executable UVM constrained-random или stress tests, но вече има sequence класове за random и dependency stress stimulus.
+Вече има executable UVM constrained-random и stress test класове, но те още не са изпълнявани в симулация.
 
-Реализирани sequence класове:
+Реализирани tests:
 
-| Sequence | Описание |
-|---|---|
-| `qc_random_instruction_sequence` | Random opcode, qubit, duration и flag комбинации с валиден instruction format |
-| `qc_dependency_stress_sequence` | Операции върху едни и същи qubit ресурси за dependency/stall stimulus |
+| Test | Sequence | Описание |
+|---|---|---|
+| `qc_random_test` | `qc_random_instruction_sequence` | Random opcode, qubit, duration и flag комбинации с валиден instruction format |
+| `qc_dependency_stress_test` | `qc_dependency_stress_sequence` | Операции върху едни и същи qubit ресурси за dependency/stall stimulus |
+
+## Кодов фрагмент 3.41 – Random test с configurable item_count
+
+От `uvm/qc_random_tests.sv`:
+
+```systemverilog
+class qc_random_test extends qc_base_test;
+
+    int unsigned item_count = 48;
+
+    `uvm_component_utils(qc_random_test)
+
+    virtual task run_test_sequence();
+        qc_random_instruction_sequence seq;
+
+        seq = qc_random_instruction_sequence::type_id::create("seq");
+        seq.item_count = item_count;
+        seq.start(env.agent.sequencer);
+    endtask
+
+endclass : qc_random_test
+```
 
 Остават за бъдещо разширяване:
 
@@ -1725,15 +1822,39 @@ tb/tb_quantum_controller_top.sv
 
 ## 3.6.3 Algorithmic workloads
 
-Вече има реализирани UVM sequence класове за начални algorithmic workloads, но те все още не са изпълнявани срещу DUT.
+Вече има реализирани executable UVM test класове за начални algorithmic workloads, но те все още не са изпълнявани срещу DUT.
 
-Реализираните algorithmic sequence класове са:
+Реализираните algorithmic tests са:
 
-| Sequence | Instruction идея | Цел |
-|---|---|---|
-| `qc_algorithmic_bell_sequence` | H върху q0, CNOT q0→q1, measurement | Проверка на зависимост между еднокубитна и двукубитна операция |
-| `qc_algorithmic_ghz_sequence` | H върху q0, CNOT chain, measurements | Проверка на последователни multi-qubit зависимости |
-| `qc_algorithmic_grover_like_sequence` | H/X/Z/CNOT/MEASURE/conditional BRANCH pattern | Проверка на смесени gate и feedback сценарии |
+| Test | Sequence | Instruction идея | Цел |
+|---|---|---|---|
+| `qc_bell_test` | `qc_algorithmic_bell_sequence` | H върху q0, CNOT q0→q1, measurement | Проверка на зависимост между еднокубитна и двукубитна операция |
+| `qc_ghz_test` | `qc_algorithmic_ghz_sequence` | H върху q0, CNOT chain, measurements | Проверка на последователни multi-qubit зависимости |
+| `qc_grover_like_test` | `qc_algorithmic_grover_like_sequence` | H/X/Z/CNOT/MEASURE/conditional BRANCH pattern | Проверка на смесени gate и feedback сценарии |
+
+## Кодов фрагмент 3.42 – Algorithmic test wrapper
+
+От `uvm/qc_algorithmic_tests.sv`:
+
+```systemverilog
+class qc_bell_test extends qc_base_test;
+
+    `uvm_component_utils(qc_bell_test)
+
+    function new(string name = "qc_bell_test", uvm_component parent = null);
+        super.new(name, parent);
+        drain_cycles = 96;
+    endfunction
+
+    virtual task run_test_sequence();
+        qc_algorithmic_bell_sequence seq;
+
+        seq = qc_algorithmic_bell_sequence::type_id::create("seq");
+        seq.start(env.agent.sequencer);
+    endtask
+
+endclass : qc_bell_test
+```
 
 Остават за бъдещо добавяне:
 
@@ -1792,7 +1913,7 @@ uvm/tb_qc_uvm_top.sv
 
 и да стартира избран UVM test чрез `+UVM_TESTNAME=...`.
 
-Файловете `qc_sequence_item.sv`, `qc_observation_item.sv`, `qc_sequencer.sv`, `qc_sequences.sv`, `qc_driver.sv`, `qc_monitor.sv`, `qc_scoreboard.sv`, `qc_coverage.sv`, `qc_agent.sv` и `qc_env.sv` се включват през `uvm/qc_uvm_pkg.sv`, затова run script-ът трябва да подаде правилен include path към директорията `uvm/`.
+Файловете `qc_sequence_item.sv`, `qc_observation_item.sv`, `qc_sequencer.sv`, `qc_sequences.sv`, `qc_driver.sv`, `qc_monitor.sv`, `qc_scoreboard.sv`, `qc_coverage.sv`, `qc_agent.sv`, `qc_env.sv`, `qc_base_test.sv`, `qc_directed_tests.sv`, `qc_random_tests.sv` и `qc_algorithmic_tests.sv` се включват през `uvm/qc_uvm_pkg.sv`, затова run script-ът трябва да подаде правилен include path към директорията `uvm/`.
 
 ---
 
@@ -1822,9 +1943,17 @@ results/waveforms/
 
 | UVM test | Sequence | Status | Seed | Log | Waveform/Coverage | Какво проверява |
 |---|---|---|---:|---|---|---|
-| `qc_smoke_test` | `qc_smoke_sequence` | TBD | 1 | `results/uvm_logs/qc_smoke_test.log` | TBD | H → MEASURE → BRANCH |
-| `qc_single_gate_test` | `qc_single_gate_sequence` | TBD | 1 | `results/uvm_logs/qc_single_gate_test.log` | TBD | H/X/Z command path |
-| `qc_branch_test` | `qc_branch_sequence` | TBD | 1 | `results/uvm_logs/qc_branch_test.log` | TBD | Measurement feedback branch |
+| `qc_smoke_test` | `qc_smoke_sequence` | NOT RUN | 1 | `results/uvm_logs/qc_smoke_test.log` | TBD | H → MEASURE → BRANCH |
+| `qc_single_gate_test` | `qc_single_gate_sequence` | NOT RUN | 1 | `results/uvm_logs/qc_single_gate_test.log` | TBD | H/X/Z command path |
+| `qc_branch_test` | `qc_branch_sequence` | NOT RUN | 1 | `results/uvm_logs/qc_branch_test.log` | TBD | Measurement feedback branch |
+
+Пълният test plan template е:
+
+```text
+docs/chapter_3_uvm_test_plan.tpl.md
+```
+
+Този `.tpl.md` файл трябва да се използва при подготовката на Глава 4, защото съдържа за всеки тест: цел, sequence, изисквания, scoreboard проверки, coverage цели и очаквани log/waveform/coverage артефакти.
 
 В тази таблица `PASS` може да се запише само след реално изпълнена UVM симулация с UVM-capable simulator. До тогава статусът трябва да остане `TBD`, `NOT RUN` или еквивалентно ясно обозначение.
 
@@ -1834,9 +1963,9 @@ results/waveforms/
 
 Текущите ограничения са:
 
-1. Реализирани са UVM package, transaction/sequence item, observation item, sequencer, начални sequence класове, virtual interface, driver, monitor, scoreboard, coverage collector, agent и env.
-2. Няма executable UVM tests.
-3. DUT сигналите са описани в `qc_if.sv`, а agent/env слоят вече свързва UVM компонентите, но все още няма `tb_qc_uvm_top.sv`, който да инстанцира `quantum_controller_top` и да го свърже към interface-а.
+1. Реализирани са UVM package, transaction/sequence item, observation item, sequencer, начални sequence класове, virtual interface, driver, monitor, scoreboard, coverage collector, agent, env и executable test класове.
+2. Няма top-level UVM testbench.
+3. DUT сигналите са описани в `qc_if.sv`, а agent/env/test слоят вече съществува, но все още няма `tb_qc_uvm_top.sv`, който да инстанцира `quantum_controller_top` и да го свърже към interface-а.
 4. Няма UVM simulation script.
 5. Няма потвърден UVM simulator в PATH освен Verilator, който се използва за съществуващите non-UVM RTL testbench-и.
 6. Няма UVM logs, UVM waveforms или UVM coverage reports.
@@ -1872,19 +2001,20 @@ results/waveforms/
 Следващата реална стъпка по Phase C е:
 
 ```text
-C8: qc_base_test.sv и executable UVM tests
+C9: tb_qc_uvm_top.sv и scripts/run_uvm.sh
 ```
 
 Препоръчителен ред:
 
-1. Създаване на `uvm/qc_base_test.sv`.
-2. Base test-ът трябва да създава `qc_env`.
-3. Base test-ът трябва да задава `vif` към `env.agent` чрез `uvm_config_db`.
-4. Base test-ът трябва да управлява objections и drain time.
-5. Създаване на directed test класове, които стартират `qc_smoke_sequence`, `qc_single_gate_sequence`, `qc_measure_sequence`, `qc_branch_sequence` и `qc_invalid_opcode_sequence`.
-6. По-късно добавяне на random/stress/algorithmic test класове.
-7. След test класовете трябва да се създаде `uvm/tb_qc_uvm_top.sv`, който инстанцира `quantum_controller_top`, `qc_if` и стартира `run_test()`.
-8. Накрая трябва да се добави `scripts/run_uvm.sh` за избрания UVM-capable simulator.
+1. Създаване на `uvm/tb_qc_uvm_top.sv`.
+2. Top-level testbench-ът трябва да генерира clock/reset.
+3. Трябва да инстанцира `qc_if` и `quantum_controller_top`.
+4. Трябва да зададе `vif` чрез `uvm_config_db` към UVM тестовете.
+5. Трябва да стартира `run_test()`.
+6. Създаване на `scripts/run_uvm.sh`.
+7. Script-ът трябва да поддържа поне Questa/ModelSim, Xcelium или VCS като UVM-capable simulator targets.
+8. Script-ът трябва да създава `results/uvm_logs`, `results/uvm_waveforms` и `results/uvm_coverage`.
+9. До наличен simulator script-ът не трябва да твърди PASS, а да дава ясна грешка/инструкция.
 
 ---
 

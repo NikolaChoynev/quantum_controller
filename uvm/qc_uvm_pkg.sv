@@ -20,6 +20,10 @@ package qc_uvm_pkg;
     `include "qc_coverage.sv"
     `include "qc_agent.sv"
     `include "qc_env.sv"
+    `include "qc_base_test.sv"
+    `include "qc_directed_tests.sv"
+    `include "qc_random_tests.sv"
+    `include "qc_algorithmic_tests.sv"
 
 endpackage : qc_uvm_pkg
 
