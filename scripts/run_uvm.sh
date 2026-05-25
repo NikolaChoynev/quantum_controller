@@ -24,13 +24,17 @@ TESTS=(
     qc_cnot_test
     qc_measure_test
     qc_wait_test
+    qc_reset_test
     qc_branch_test
     qc_invalid_opcode_test
     qc_random_test
     qc_dependency_stress_test
+    qc_hazard_test
+    qc_queue_overflow_test
     qc_bell_test
     qc_ghz_test
     qc_grover_like_test
+    qc_random_circuit_sampling_test
 )
 
 RTL_FILES=(

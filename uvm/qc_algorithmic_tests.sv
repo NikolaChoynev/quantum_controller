@@ -55,4 +55,36 @@ class qc_grover_like_test extends qc_base_test;
 
 endclass : qc_grover_like_test
 
+class qc_random_circuit_sampling_test extends qc_base_test;
+
+    int unsigned layer_count = 4;
+
+    `uvm_component_utils(qc_random_circuit_sampling_test)
+
+    function new(string name = "qc_random_circuit_sampling_test", uvm_component parent = null);
+        super.new(name, parent);
+        drain_cycles = 192;
+    endfunction
+
+    function void build_phase(uvm_phase phase);
+        super.build_phase(phase);
+
+        void'(uvm_config_db #(int unsigned)::get(
+            this,
+            "",
+            "layer_count",
+            layer_count
+        ));
+    endfunction
+
+    virtual task run_test_sequence();
+        qc_random_circuit_sampling_sequence seq;
+
+        seq = qc_random_circuit_sampling_sequence::type_id::create("seq");
+        seq.layer_count = layer_count;
+        seq.start(env.agent.sequencer);
+    endtask
+
+endclass : qc_random_circuit_sampling_test
+
 `endif

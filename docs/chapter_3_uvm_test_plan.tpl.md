@@ -66,13 +66,17 @@ UVM_SIM=<questa|xcelium|vcs> SEED=1 ./scripts/run_uvm.sh all
 | `qc_cnot_test` | `qc_cnot_sequence` | Directed | NOT RUN | 1 | `results/uvm_logs/qc_cnot_test.log` | TBD | TBD | Two-qubit CNOT dependency |
 | `qc_measure_test` | `qc_measure_sequence` | Directed | NOT RUN | 1 | `results/uvm_logs/qc_measure_test.log` | TBD | TBD | Measurement request/result path |
 | `qc_wait_test` | `qc_wait_sequence` | Directed | NOT RUN | 1 | `results/uvm_logs/qc_wait_test.log` | TBD | TBD | WAIT hold/stall behavior |
+| `qc_reset_test` | `qc_reset_sequence` | Directed | NOT RUN | 1 | `results/uvm_logs/qc_reset_test.log` | TBD | TBD | RESET command classification |
 | `qc_branch_test` | `qc_branch_sequence` | Directed | NOT RUN | 1 | `results/uvm_logs/qc_branch_test.log` | TBD | TBD | Conditional feedback branch |
 | `qc_invalid_opcode_test` | `qc_invalid_opcode_sequence` | Directed negative | NOT RUN | 1 | `results/uvm_logs/qc_invalid_opcode_test.log` | TBD | TBD | Illegal opcode handling |
 | `qc_random_test` | `qc_random_instruction_sequence` | Constrained-random | NOT RUN | TBD | `results/uvm_logs/qc_random_test.log` | TBD | TBD | Random valid instruction stream |
 | `qc_dependency_stress_test` | `qc_dependency_stress_sequence` | Stress | NOT RUN | 1 | `results/uvm_logs/qc_dependency_stress_test.log` | TBD | TBD | Qubit dependency/stall behavior |
+| `qc_hazard_test` | `qc_hazard_sequence` | Stress/corner | NOT RUN | 1 | `results/uvm_logs/qc_hazard_test.log` | TBD | TBD | Explicit dependency hazards |
+| `qc_queue_overflow_test` | `qc_queue_overflow_sequence` | Corner | NOT RUN | 1 | `results/uvm_logs/qc_queue_overflow_test.log` | TBD | TBD | Queue overflow protection/backpressure |
 | `qc_bell_test` | `qc_algorithmic_bell_sequence` | Algorithmic | NOT RUN | 1 | `results/uvm_logs/qc_bell_test.log` | TBD | TBD | Bell-style H/CNOT/measure workload |
 | `qc_ghz_test` | `qc_algorithmic_ghz_sequence` | Algorithmic | NOT RUN | 1 | `results/uvm_logs/qc_ghz_test.log` | TBD | TBD | GHZ-style CNOT chain workload |
 | `qc_grover_like_test` | `qc_algorithmic_grover_like_sequence` | Algorithmic | NOT RUN | 1 | `results/uvm_logs/qc_grover_like_test.log` | TBD | TBD | Mixed gate/measure/branch workload |
+| `qc_random_circuit_sampling_test` | `qc_random_circuit_sampling_sequence` | Algorithmic/stress | NOT RUN | 1 | `results/uvm_logs/qc_random_circuit_sampling_test.log` | TBD | TBD | Layered random-circuit-sampling-inspired workload |
 
 ---
 
@@ -138,7 +142,19 @@ UVM_SIM=<questa|xcelium|vcs> SEED=1 ./scripts/run_uvm.sh all
 | Coverage цели | OP_WAIT, command class wait, stall coverage |
 | Chapter 4 артефакти | log, waveform на scheduler_stall и queue_count |
 
-### 3.6 `qc_branch_test`
+### 3.6 `qc_reset_test`
+
+| Поле | Описание |
+|---|---|
+| Sequence | `qc_reset_sequence` |
+| Stimulus | H q0, RESET q0, X q0 |
+| Основна цел | Проверка на instruction-level RESET command path |
+| Изисквания | RESET е RTL команда, различна от testbench reset сигнала `rst_ni` |
+| Scoreboard проверки | `reset_cmd_o`, opcode/target consistency, one-hot command classification |
+| Coverage цели | OP_RESET, command class reset, opcode × command class |
+| Chapter 4 артефакти | log и waveform на reset command classification |
+
+### 3.7 `qc_branch_test`
 
 | Поле | Описание |
 |---|---|
@@ -150,7 +166,7 @@ UVM_SIM=<questa|xcelium|vcs> SEED=1 ./scripts/run_uvm.sh all
 | Coverage цели | Branch taken, conditional/feedback/expected flags |
 | Chapter 4 артефакти | log, waveform на feedback_valid/branch_taken/queue_count |
 
-### 3.7 `qc_invalid_opcode_test`
+### 3.8 `qc_invalid_opcode_test`
 
 | Поле | Описание |
 |---|---|
@@ -162,7 +178,7 @@ UVM_SIM=<questa|xcelium|vcs> SEED=1 ./scripts/run_uvm.sh all
 | Coverage цели | Invalid opcode bin, illegal instruction status |
 | Chapter 4 артефакти | log и waveform около invalid instruction accept |
 
-### 3.8 `qc_random_test`
+### 3.9 `qc_random_test`
 
 | Поле | Описание |
 |---|---|
@@ -174,7 +190,7 @@ UVM_SIM=<questa|xcelium|vcs> SEED=1 ./scripts/run_uvm.sh all
 | Coverage цели | Opcode coverage, opcode × flags, status/queue/busy bins |
 | Chapter 4 артефакти | log със seed, coverage report, failing seed if any |
 
-### 3.9 `qc_dependency_stress_test`
+### 3.10 `qc_dependency_stress_test`
 
 | Поле | Описание |
 |---|---|
@@ -186,7 +202,31 @@ UVM_SIM=<questa|xcelium|vcs> SEED=1 ./scripts/run_uvm.sh all
 | Coverage цели | Scheduler stall, busy qubit count, gate command coverage |
 | Chapter 4 артефакти | waveform на qubit_busy/stall и coverage summary |
 
-### 3.10 `qc_bell_test`
+### 3.11 `qc_hazard_test`
+
+| Поле | Описание |
+|---|---|
+| Sequence | `qc_hazard_sequence` |
+| Stimulus | H/X върху q0, CNOT q0→q1, Z q1, MEASURE q0 |
+| Основна цел | Явна проверка на dependency hazards и in-order scheduling |
+| Изисквания | Scoreboard/monitor трябва да наблюдават busy/stall/status промени |
+| Scoreboard проверки | Command order, illegal_issue absence, measurement correlation |
+| Coverage цели | Scheduler stall, busy qubit count, gate/CNOT/MEASURE coverage |
+| Chapter 4 артефакти | waveform на qubit_busy, scheduler_stall, issue/command order |
+
+### 3.12 `qc_queue_overflow_test`
+
+| Поле | Описание |
+|---|---|
+| Sequence | `qc_queue_overflow_sequence` |
+| Stimulus | Long WAIT hold, последван от burst от повече инструкции от queue depth |
+| Основна цел | Проверка на queue pressure и overflow protection чрез backpressure |
+| Изисквания | Driver спазва `instr_ready_o`; тестът не нарушава ready/valid протокола |
+| Scoreboard проверки | `queue_count_o` не надвишава depth, illegal_issue absence, command consistency |
+| Coverage цели | Queue count high bins, scheduler stall, WAIT + gate burst |
+| Chapter 4 артефакти | waveform на instr_ready/instr_valid/queue_count/scheduler_stall |
+
+### 3.13 `qc_bell_test`
 
 | Поле | Описание |
 |---|---|
@@ -198,7 +238,7 @@ UVM_SIM=<questa|xcelium|vcs> SEED=1 ./scripts/run_uvm.sh all
 | Coverage цели | H, CNOT, MEASURE, measurement result values |
 | Chapter 4 артефакти | log, waveform и coverage snapshot |
 
-### 3.11 `qc_ghz_test`
+### 3.14 `qc_ghz_test`
 
 | Поле | Описание |
 |---|---|
@@ -210,7 +250,7 @@ UVM_SIM=<questa|xcelium|vcs> SEED=1 ./scripts/run_uvm.sh all
 | Coverage цели | Multi-qubit busy bins, CNOT, measurement bins |
 | Chapter 4 артефакти | waveform на issue/command/measurement chain |
 
-### 3.12 `qc_grover_like_test`
+### 3.15 `qc_grover_like_test`
 
 | Поле | Описание |
 |---|---|
@@ -222,9 +262,183 @@ UVM_SIM=<questa|xcelium|vcs> SEED=1 ./scripts/run_uvm.sh all
 | Coverage цели | Broad opcode coverage, branch flags, measurement result, feedback outcome |
 | Chapter 4 артефакти | log, waveform и coverage report |
 
+### 3.16 `qc_random_circuit_sampling_test`
+
+| Поле | Описание |
+|---|---|
+| Sequence | `qc_random_circuit_sampling_sequence` |
+| Stimulus | Слоеве от pseudo-random H/X/Z gates, CNOT pairs и финални measurements |
+| Основна цел | Random-circuit-sampling-inspired workload за по-богато opcode/resource покритие |
+| Изисквания | Layer count трябва да е конфигурируем; не се твърди физическа quantum simulation |
+| Scoreboard проверки | Gate/CNOT/measurement command consistency, measurement result correlation |
+| Coverage цели | Broad opcode coverage, CNOT pair usage, multi-measurement coverage |
+| Chapter 4 артефакти | log, waveform и coverage report за layered workload |
+
 ---
 
-## 4. Chapter 4 execution plan
+## 4. Code snippets за дисертацията
+
+Тези фрагменти са минималните реални code excerpts, които могат да се използват във финалната дисертация при описване на тестовете. Всички са от `uvm/qc_sequences.sv`, освен ако не е посочено друго.
+
+### 4.1 `qc_smoke_test`
+
+```systemverilog
+send_instruction(OP_H,       4'd0, 4'd0, 12'd4,  make_flags());
+send_instruction(OP_MEASURE, 4'd0, 4'd0, 12'd6,  make_flags(), '0, 1'b1, 1'b1, 3);
+send_instruction(OP_BRANCH,  4'd0, 4'd0, 12'd16, make_flags(1'b1, 1'b1, 1'b1, 1'b1));
+```
+
+### 4.2 `qc_single_gate_test`
+
+```systemverilog
+send_instruction(OP_H, 4'd0, 4'd0, 12'd4, make_flags());
+send_instruction(OP_X, 4'd1, 4'd0, 12'd4, make_flags());
+send_instruction(OP_Z, 4'd2, 4'd0, 12'd4, make_flags());
+```
+
+### 4.3 `qc_cnot_test`
+
+```systemverilog
+send_instruction(OP_H,    4'd0, 4'd0, 12'd4, make_flags());
+send_instruction(OP_CNOT, 4'd1, 4'd0, 12'd8, make_flags());
+```
+
+### 4.4 `qc_measure_test`
+
+```systemverilog
+send_instruction(OP_MEASURE, 4'd3, 4'd0, 12'd6, make_flags(), '0, 1'b1, 1'b1, 4);
+```
+
+### 4.5 `qc_wait_test`
+
+```systemverilog
+send_instruction(OP_H,    4'd0, 4'd0, 12'd4, make_flags());
+send_instruction(OP_WAIT, 4'd0, 4'd0, 12'd5, make_flags());
+send_instruction(OP_X,    4'd1, 4'd0, 12'd4, make_flags());
+```
+
+### 4.6 `qc_reset_test`
+
+```systemverilog
+send_instruction(OP_H,     4'd0, 4'd0, 12'd4, make_flags());
+send_instruction(OP_RESET, 4'd0, 4'd0, 12'd2, make_flags());
+send_instruction(OP_X,     4'd0, 4'd0, 12'd4, make_flags());
+```
+
+### 4.7 `qc_branch_test`
+
+```systemverilog
+send_instruction(OP_MEASURE, 4'd2, 4'd0, 12'd6,  make_flags(), '0, 1'b1, 1'b1, 3);
+send_instruction(OP_BRANCH,  4'd2, 4'd0, 12'd24, make_flags(1'b1, 1'b1, 1'b1, 1'b1));
+send_instruction(OP_X,       4'd4, 4'd0, 12'd4,  make_flags());
+```
+
+### 4.8 `qc_invalid_opcode_test`
+
+```systemverilog
+send_raw_instruction({4'hE, 4'd0, 4'd0, 12'd0, make_flags(), 4'd0});
+```
+
+### 4.9 `qc_random_test`
+
+```systemverilog
+repeat (item_count) begin
+    item = qc_sequence_item::type_id::create("random_item");
+
+    start_item(item);
+    if (!item.randomize() with {
+        raw_override_en == 1'b0;
+        allow_invalid_opcode == 1'b0;
+        valid_instruction == 1'b1;
+    }) begin
+        `uvm_error(get_type_name(), "Failed to randomize qc_sequence_item")
+    end
+    finish_item(item);
+end
+```
+
+### 4.10 `qc_dependency_stress_test`
+
+```systemverilog
+send_instruction(OP_H,    4'd0, 4'd0, 12'd5, make_flags());
+send_instruction(OP_X,    4'd0, 4'd0, 12'd3, make_flags());
+send_instruction(OP_Z,    4'd0, 4'd0, 12'd2, make_flags());
+send_instruction(OP_CNOT, 4'd1, 4'd0, 12'd6, make_flags());
+send_instruction(OP_CNOT, 4'd2, 4'd0, 12'd6, make_flags());
+send_instruction(OP_H,    4'd3, 4'd0, 12'd2, make_flags());
+```
+
+### 4.11 `qc_hazard_test`
+
+```systemverilog
+send_instruction(OP_H,       4'd0, 4'd0, 12'd10, make_flags());
+send_instruction(OP_X,       4'd0, 4'd0, 12'd3,  make_flags());
+send_instruction(OP_CNOT,    4'd1, 4'd0, 12'd8,  make_flags());
+send_instruction(OP_Z,       4'd1, 4'd0, 12'd3,  make_flags());
+send_instruction(OP_MEASURE, 4'd0, 4'd0, 12'd6,  make_flags(), '0, 1'b1, 1'b0, 3);
+```
+
+### 4.12 `qc_queue_overflow_test`
+
+```systemverilog
+send_instruction(OP_WAIT, 4'd0, 4'd0, 12'd24, make_flags());
+
+for (int unsigned i = 0; i < burst_count; i++) begin
+    case (i % 4)
+        0: send_instruction(OP_H,    4'd0, 4'd0, 12'd4, make_flags());
+        1: send_instruction(OP_X,    4'd1, 4'd0, 12'd4, make_flags());
+        2: send_instruction(OP_Z,    4'd2, 4'd0, 12'd4, make_flags());
+        3: send_instruction(OP_CNOT, 4'd3, 4'd2, 12'd6, make_flags());
+    endcase
+end
+```
+
+### 4.13 `qc_bell_test`
+
+```systemverilog
+send_instruction(OP_H,       4'd0, 4'd0, 12'd4, make_flags());
+send_instruction(OP_CNOT,    4'd1, 4'd0, 12'd8, make_flags());
+send_instruction(OP_MEASURE, 4'd0, 4'd0, 12'd6, make_flags(), '0, 1'b1, 1'b0, 3);
+send_instruction(OP_MEASURE, 4'd1, 4'd0, 12'd6, make_flags(), '0, 1'b1, 1'b0, 3);
+```
+
+### 4.14 `qc_ghz_test`
+
+```systemverilog
+send_instruction(OP_H,       4'd0, 4'd0, 12'd4, make_flags());
+send_instruction(OP_CNOT,    4'd1, 4'd0, 12'd8, make_flags());
+send_instruction(OP_CNOT,    4'd2, 4'd1, 12'd8, make_flags());
+send_instruction(OP_MEASURE, 4'd0, 4'd0, 12'd6, make_flags(), '0, 1'b1, 1'b1, 3);
+send_instruction(OP_MEASURE, 4'd1, 4'd0, 12'd6, make_flags(), '0, 1'b1, 1'b1, 3);
+send_instruction(OP_MEASURE, 4'd2, 4'd0, 12'd6, make_flags(), '0, 1'b1, 1'b1, 3);
+```
+
+### 4.15 `qc_grover_like_test`
+
+```systemverilog
+send_instruction(OP_H,       4'd0, 4'd0, 12'd4,  make_flags());
+send_instruction(OP_H,       4'd1, 4'd0, 12'd4,  make_flags());
+send_instruction(OP_X,       4'd1, 4'd0, 12'd4,  make_flags());
+send_instruction(OP_CNOT,    4'd1, 4'd0, 12'd8,  make_flags());
+send_instruction(OP_Z,       4'd1, 4'd0, 12'd4,  make_flags());
+send_instruction(OP_MEASURE, 4'd1, 4'd0, 12'd6,  make_flags(), '0, 1'b1, 1'b1, 4);
+send_instruction(OP_BRANCH,  4'd1, 4'd0, 12'd32, make_flags(1'b1, 1'b1, 1'b1, 1'b1));
+```
+
+### 4.16 `qc_random_circuit_sampling_test`
+
+```systemverilog
+for (int unsigned layer = 0; layer < layer_count; layer++) begin
+    send_instruction(pseudo_random_gate(layer, 0), 4'd0, 4'd0, 12'd3, make_flags());
+    send_instruction(pseudo_random_gate(layer, 1), 4'd1, 4'd0, 12'd3, make_flags());
+    send_instruction(pseudo_random_gate(layer, 2), 4'd2, 4'd0, 12'd3, make_flags());
+    send_instruction(pseudo_random_gate(layer, 3), 4'd3, 4'd0, 12'd3, make_flags());
+end
+```
+
+---
+
+## 5. Chapter 4 execution plan
 
 Когато бъде наличен UVM-capable simulator, Глава 4 трябва да използва този test plan като изпълним regression списък.
 
@@ -241,3 +455,5 @@ UVM_SIM=<questa|xcelium|vcs> SEED=1 ./scripts/run_uvm.sh all
 ```
 
 Не трябва да се описват coverage проценти, PASS статус или waveform резултати без реални файлове от `results/`.
+
+Финалното академично писане на Глави 2, 3 и 4 трябва да се прави след тези runs. Ако реалните UVM симулации или coverage резултатите покажат нужда от RTL/UVM корекция, промяната трябва първо да се върне в кода, да се commit-не и чак след това да се отрази във финалния текст.

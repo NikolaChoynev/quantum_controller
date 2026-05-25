@@ -86,6 +86,23 @@ class qc_wait_test extends qc_base_test;
 
 endclass : qc_wait_test
 
+class qc_reset_test extends qc_base_test;
+
+    `uvm_component_utils(qc_reset_test)
+
+    function new(string name = "qc_reset_test", uvm_component parent = null);
+        super.new(name, parent);
+    endfunction
+
+    virtual task run_test_sequence();
+        qc_reset_sequence seq;
+
+        seq = qc_reset_sequence::type_id::create("seq");
+        seq.start(env.agent.sequencer);
+    endtask
+
+endclass : qc_reset_test
+
 class qc_branch_test extends qc_base_test;
 
     `uvm_component_utils(qc_branch_test)

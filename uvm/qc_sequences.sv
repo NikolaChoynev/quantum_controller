@@ -165,6 +165,22 @@ class qc_wait_sequence extends qc_base_sequence;
 
 endclass : qc_wait_sequence
 
+class qc_reset_sequence extends qc_base_sequence;
+
+    `uvm_object_utils(qc_reset_sequence)
+
+    function new(string name = "qc_reset_sequence");
+        super.new(name);
+    endfunction
+
+    virtual task body();
+        send_instruction(OP_H,     4'd0, 4'd0, 12'd4, make_flags());
+        send_instruction(OP_RESET, 4'd0, 4'd0, 12'd2, make_flags());
+        send_instruction(OP_X,     4'd0, 4'd0, 12'd4, make_flags());
+    endtask
+
+endclass : qc_reset_sequence
+
 class qc_branch_sequence extends qc_base_sequence;
 
     `uvm_object_utils(qc_branch_sequence)
@@ -256,6 +272,55 @@ class qc_dependency_stress_sequence extends qc_base_sequence;
 
 endclass : qc_dependency_stress_sequence
 
+class qc_hazard_sequence extends qc_base_sequence;
+
+    `uvm_object_utils(qc_hazard_sequence)
+
+    function new(string name = "qc_hazard_sequence");
+        super.new(name);
+    endfunction
+
+    virtual task body();
+        send_instruction(OP_H,       4'd0, 4'd0, 12'd10, make_flags());
+        send_instruction(OP_X,       4'd0, 4'd0, 12'd3,  make_flags());
+        send_instruction(OP_CNOT,    4'd1, 4'd0, 12'd8,  make_flags());
+        send_instruction(OP_Z,       4'd1, 4'd0, 12'd3,  make_flags());
+        send_instruction(OP_MEASURE, 4'd0, 4'd0, 12'd6,  make_flags(), '0, 1'b1, 1'b0, 3);
+    endtask
+
+endclass : qc_hazard_sequence
+
+class qc_queue_overflow_sequence extends qc_base_sequence;
+
+    int unsigned burst_count = 10;
+
+    `uvm_object_utils_begin(qc_queue_overflow_sequence)
+        `uvm_field_int(burst_count, UVM_DEFAULT)
+    `uvm_object_utils_end
+
+    function new(string name = "qc_queue_overflow_sequence");
+        super.new(name);
+    endfunction
+
+    virtual task body();
+        if (burst_count == 0) begin
+            burst_count = 10;
+        end
+
+        send_instruction(OP_WAIT, 4'd0, 4'd0, 12'd24, make_flags());
+
+        for (int unsigned i = 0; i < burst_count; i++) begin
+            case (i % 4)
+                0: send_instruction(OP_H,    4'd0, 4'd0, 12'd4, make_flags());
+                1: send_instruction(OP_X,    4'd1, 4'd0, 12'd4, make_flags());
+                2: send_instruction(OP_Z,    4'd2, 4'd0, 12'd4, make_flags());
+                3: send_instruction(OP_CNOT, 4'd3, 4'd2, 12'd6, make_flags());
+            endcase
+        end
+    endtask
+
+endclass : qc_queue_overflow_sequence
+
 class qc_algorithmic_bell_sequence extends qc_base_sequence;
 
     `uvm_object_utils(qc_algorithmic_bell_sequence)
@@ -311,5 +376,52 @@ class qc_algorithmic_grover_like_sequence extends qc_base_sequence;
     endtask
 
 endclass : qc_algorithmic_grover_like_sequence
+
+class qc_random_circuit_sampling_sequence extends qc_base_sequence;
+
+    int unsigned layer_count = 4;
+
+    `uvm_object_utils_begin(qc_random_circuit_sampling_sequence)
+        `uvm_field_int(layer_count, UVM_DEFAULT)
+    `uvm_object_utils_end
+
+    function new(string name = "qc_random_circuit_sampling_sequence");
+        super.new(name);
+    endfunction
+
+    function qc_opcode_e pseudo_random_gate(int unsigned layer, int unsigned qubit);
+        case ((layer * 5 + qubit * 3) % 3)
+            0: return OP_H;
+            1: return OP_X;
+            default: return OP_Z;
+        endcase
+    endfunction
+
+    virtual task body();
+        if (layer_count == 0) begin
+            layer_count = 4;
+        end
+
+        for (int unsigned layer = 0; layer < layer_count; layer++) begin
+            send_instruction(pseudo_random_gate(layer, 0), 4'd0, 4'd0, 12'd3, make_flags());
+            send_instruction(pseudo_random_gate(layer, 1), 4'd1, 4'd0, 12'd3, make_flags());
+            send_instruction(pseudo_random_gate(layer, 2), 4'd2, 4'd0, 12'd3, make_flags());
+            send_instruction(pseudo_random_gate(layer, 3), 4'd3, 4'd0, 12'd3, make_flags());
+
+            if ((layer % 2) == 0) begin
+                send_instruction(OP_CNOT, 4'd1, 4'd0, 12'd6, make_flags());
+                send_instruction(OP_CNOT, 4'd3, 4'd2, 12'd6, make_flags());
+            end else begin
+                send_instruction(OP_CNOT, 4'd2, 4'd1, 12'd6, make_flags());
+            end
+        end
+
+        send_instruction(OP_MEASURE, 4'd0, 4'd0, 12'd6, make_flags(), '0, 1'b1, 1'b0, 3);
+        send_instruction(OP_MEASURE, 4'd1, 4'd0, 12'd6, make_flags(), '0, 1'b1, 1'b1, 3);
+        send_instruction(OP_MEASURE, 4'd2, 4'd0, 12'd6, make_flags(), '0, 1'b1, 1'b0, 3);
+        send_instruction(OP_MEASURE, 4'd3, 4'd0, 12'd6, make_flags(), '0, 1'b1, 1'b1, 3);
+    endtask
+
+endclass : qc_random_circuit_sampling_sequence
 
 `endif

@@ -426,9 +426,9 @@ scripts/run_uvm.sh
 `uvm/qc_sequences.sv` реализира:
 
 - `qc_base_sequence` с helper функции `make_flags()`, `send_instruction()` и `send_raw_instruction()`;
-- directed sequences: `qc_smoke_sequence`, `qc_single_gate_sequence`, `qc_cnot_sequence`, `qc_measure_sequence`, `qc_wait_sequence`, `qc_branch_sequence`, `qc_invalid_opcode_sequence`;
-- random/stress sequences: `qc_random_instruction_sequence`, `qc_dependency_stress_sequence`;
-- algorithmic workload sequences: `qc_algorithmic_bell_sequence`, `qc_algorithmic_ghz_sequence`, `qc_algorithmic_grover_like_sequence`.
+- directed sequences: `qc_smoke_sequence`, `qc_single_gate_sequence`, `qc_cnot_sequence`, `qc_measure_sequence`, `qc_wait_sequence`, `qc_reset_sequence`, `qc_branch_sequence`, `qc_invalid_opcode_sequence`;
+- random/stress/corner sequences: `qc_random_instruction_sequence`, `qc_dependency_stress_sequence`, `qc_hazard_sequence`, `qc_queue_overflow_sequence`;
+- algorithmic workload sequences: `qc_algorithmic_bell_sequence`, `qc_algorithmic_ghz_sequence`, `qc_algorithmic_grover_like_sequence`, `qc_random_circuit_sampling_sequence`.
 
 `uvm/qc_if.sv` реализира SystemVerilog interface за DUT сигналите на `rtl/quantum_controller_top.sv`. Той съдържа `drv_cb` clocking block за driver-а, `mon_cb` clocking block за monitor-а и `dut` modport за top-level testbench.
 
@@ -448,7 +448,17 @@ scripts/run_uvm.sh
 
 `uvm/qc_base_test.sv` реализира `qc_base_test extends uvm_test`. Base test-ът създава `qc_env`, изисква `virtual qc_if` през `uvm_config_db`, задава го към `env.agent`, управлява UVM objections и добавя drain cycles след sequence изпълнение.
 
-`uvm/qc_directed_tests.sv`, `uvm/qc_random_tests.sv` и `uvm/qc_algorithmic_tests.sv` реализират executable UVM test класове: `qc_smoke_test`, `qc_single_gate_test`, `qc_cnot_test`, `qc_measure_test`, `qc_wait_test`, `qc_branch_test`, `qc_invalid_opcode_test`, `qc_random_test`, `qc_dependency_stress_test`, `qc_bell_test`, `qc_ghz_test` и `qc_grover_like_test`.
+`uvm/qc_directed_tests.sv`, `uvm/qc_random_tests.sv` и `uvm/qc_algorithmic_tests.sv` реализират executable UVM test класове: `qc_smoke_test`, `qc_single_gate_test`, `qc_cnot_test`, `qc_measure_test`, `qc_wait_test`, `qc_reset_test`, `qc_branch_test`, `qc_invalid_opcode_test`, `qc_random_test`, `qc_dependency_stress_test`, `qc_hazard_test`, `qc_queue_overflow_test`, `qc_bell_test`, `qc_ghz_test`, `qc_grover_like_test` и `qc_random_circuit_sampling_test`.
+
+Работният план за тестовете трябва да се тълкува така:
+
+```text
+C8  Directed tests: H, X, CNOT, MEASURE, WAIT, RESET, BRANCH
+C9  Constrained-random tests: randomized instruction sequences
+C10 Algorithmic/stress/corner tests: Bell, GHZ, Grover-like, random-circuit-sampling-inspired, hazards, queue overflow/backpressure
+```
+
+Всички тези test групи вече имат sequence клас, executable UVM test клас, run script entry и описание в `docs/chapter_3_uvm_test_plan.tpl.md`. Test plan-ът съдържа и code snippets за всеки test, които могат директно да се използват при финалното писане на Глава 3.
 
 `uvm/tb_qc_uvm_top.sv` реализира top-level UVM testbench. Той генерира clock, инстанцира `qc_if`, свързва `rtl/quantum_controller_top.sv` към interface сигналите, задава `virtual qc_if` към `uvm_test_top` чрез `uvm_config_db` и стартира `run_test()`.
 
@@ -466,7 +476,7 @@ docs/chapter_3_uvm_test_plan.tpl.md
 
 Наличният локален simulator flow към момента е Verilator за non-UVM RTL testbench-и. `vlog/vsim`, `xrun` и `vcs` не са намерени в PATH при последната проверка. Затова новият UVM код все още не е стартиран като UVM симулация и не трябва да се твърди, че има UVM PASS статус, UVM logs/waveforms/coverage резултати или coverage проценти.
 
-След C9 трябва да се продължи с:
+След C8/C9/C10 test имплементацията трябва да се продължи с:
 
 ```text
 инсталиране/конфигуриране на UVM-capable simulator
@@ -477,7 +487,7 @@ docs/chapter_3_uvm_test_plan.tpl.md
 
 Глава 3 може да се счита за готова за финално академично писане само когато има не само UVM код, но и реални simulation artifacts. `docs/chapter_3_uvm_verification.md` вече съдържа раздел `3.12 Definition of Done за UVM фазата`. Бъдещ агент трябва да го следва.
 
-Важно за Глава 4: трябва да се изпълнят всички UVM тестове от `docs/chapter_3_uvm_test_plan.tpl.md` с реален UVM-capable simulator. За всеки тест трябва да има status, seed, log file, waveform artifact и coverage artifact. Глава 4 трябва да анализира резултатите от логовете, вълните и coverage report-ите, а не само да описва тестовете теоретично. Това включва и план за coverage runs: functional coverage summary, missing bins, opcode/flags/branch/measurement/stall покритие и ясно разграничение между покрито, непокрито и ограничено от toolchain-а.
+Важно за Глава 4: след завършване на кодовата част на Глава 3 трябва да се инсталира или конфигурира реален UVM-capable simulator и да се изпълнят всички UVM тестове от `docs/chapter_3_uvm_test_plan.tpl.md`. За всеки тест трябва да има status, seed, log file, waveform artifact и coverage artifact. Глава 4 трябва да анализира резултатите от логовете, вълните и coverage report-ите, а не само да описва тестовете теоретично. Това включва и план за coverage runs: functional coverage summary, missing bins, opcode/flags/branch/measurement/stall покритие и ясно разграничение между покрито, непокрито и ограничено от toolchain-а. Финалното писане на Глави 2/3/4 трябва да се прави след тези runs, за да могат евентуални промени, изискани от резултатите в Глава 4, да бъдат върнати обратно в кода и документацията.
 
 В бъдещия Markdown трябва да има реална regression таблица с формат:
 

@@ -47,13 +47,13 @@ UVM кодът все още не е изпълняван срещу DUT кат�
 | № | Изисквана информация | Текущ статус | Къде се попълва |
 |---:|---|---|---|
 | 1 | Каква UVM среда е реализирана | Налични са package, transaction item, observation item, sequencer, sequences, interface, driver, monitor, scoreboard, coverage, agent, env, test класове, top-level testbench и run script | Раздели 3.2, 3.4, 3.5, 3.6 и 3.7 |
-| 2 | Кои файлове са създадени в `uvm/` | Създадени са всички C8/C9 UVM scaffold файлове, включително `tb_qc_uvm_top.sv` | Раздел 3.2 |
+| 2 | Кои файлове са създадени в `uvm/` | Създадени са всички текущи UVM scaffold файлове, включително `tb_qc_uvm_top.sv` | Раздел 3.2 |
 | 3 | Как DUT е свързан към testbench-а | Реализирано чрез `qc_if.sv` и `uvm/tb_qc_uvm_top.sv`; реален simulator run предстои | Раздел 3.3 |
 | 4 | Какво съдържа transaction/sequence item | Реализирано в `uvm/qc_sequence_item.sv` | Раздел 3.4 |
 | 5 | Как работят sequencer, driver, monitor, scoreboard и coverage | Sequencer, sequences, driver, monitor, scoreboard и coverage са реализирани и свързани чрез agent/env | Раздел 3.5 |
-| 6 | Какви directed tests са реализирани | Има directed sequence класове и executable directed UVM test класове | Раздел 3.6.1 |
-| 7 | Какви constrained-random/stress tests са реализирани | Има random/stress sequence класове и executable random/stress UVM test класове; още не са изпълнявани | Раздел 3.6.2 |
-| 8 | Какви algorithmic workloads са реализирани | Има Bell, GHZ и Grover-like sequence класове и executable algorithmic UVM test класове; още не са изпълнявани | Раздел 3.6.3 |
+| 6 | Какви directed tests са реализирани | Има directed tests за H/X/Z, CNOT, MEASURE, WAIT, RESET, BRANCH и invalid opcode | Раздел 3.6.1 |
+| 7 | Какви constrained-random/stress tests са реализирани | Има random, dependency stress, hazard и queue overflow/backpressure tests; още не са изпълнявани | Раздел 3.6.2 |
+| 8 | Какви algorithmic workloads са реализирани | Има Bell, GHZ, Grover-like и random-circuit-sampling-inspired tests; още не са изпълнявани | Раздел 3.6.3 |
 | 9 | Как се пускат симулациите | RTL baseline се пуска с `scripts/run_verilator.sh`; UVM flow е подготвен чрез `scripts/run_uvm.sh`, но изисква UVM-capable simulator | Раздел 3.7 |
 | 10 | Какви log/waveform/coverage резултати има | Налични са RTL Verilator logs/waves; UVM logs/waves/coverage още няма | Раздел 3.8 |
 | 11 | Какви ограничения има текущата UVM среда | Описани са текущите ограничения и toolchain липси | Раздел 3.9 |
@@ -103,19 +103,19 @@ UVM средата трябва да работи върху основната 
 | `uvm/qc_agent.sv` | Реализиран | UVM agent, който свързва sequencer, driver и monitor |
 | `uvm/qc_env.sv` | Реализиран | UVM environment, който свързва agent, scoreboard и coverage |
 | `uvm/qc_base_test.sv` | Реализиран | Base UVM test, който създава env, задава `vif` и управлява objections/drain |
-| `uvm/qc_directed_tests.sv` | Реализиран | Directed executable UVM tests |
-| `uvm/qc_random_tests.sv` | Реализиран | Random и dependency stress executable UVM tests |
-| `uvm/qc_algorithmic_tests.sv` | Реализиран | Bell, GHZ и Grover-like executable UVM tests |
+| `uvm/qc_directed_tests.sv` | Реализиран | Directed executable UVM tests за H, X, Z, CNOT, MEASURE, WAIT, RESET и BRANCH |
+| `uvm/qc_random_tests.sv` | Реализиран | Constrained-random, hazard и queue overflow/backpressure executable UVM tests |
+| `uvm/qc_algorithmic_tests.sv` | Реализиран | Bell, GHZ, Grover-like и random-circuit-sampling-inspired executable UVM tests |
 | `uvm/tb_qc_uvm_top.sv` | Реализиран | Top-level UVM testbench, който инстанцира DUT, `qc_if` и стартира `run_test()` |
 | `scripts/run_uvm.sh` | Реализиран | UVM run script за Questa/ModelSim, Xcelium или VCS |
 
-Все още няма липсващи C8/C9 scaffold файлове. Остават реални simulator runs и резултатни артефакти.
+Все още няма липсващи scaffold файлове за текущата UVM кодова фаза. Остават реални simulator runs и резултатни артефакти.
 
 ```text
-няма липсващи C8/C9 UVM scaffold файлове
+няма липсващи UVM scaffold файлове за текущата кодова фаза
 ```
 
-Този списък отразява C8/C9 scaffold състоянието. Следващите промени вече трябва да бъдат насочени към реално изпълнение, резултати и евентуални корекции след simulator bring-up.
+Този списък отразява scaffold състоянието след добавяне на directed, random, stress/corner и algorithmic tests. Следващите промени вече трябва да бъдат насочени към реално изпълнение, резултати и евентуални корекции след simulator bring-up.
 
 ## Кодов фрагмент 3.1 – UVM package файл
 
@@ -525,13 +525,17 @@ uvm/qc_sequences.sv
 | `qc_cnot_sequence` | Реализиран | H + CNOT двукубитен сценарий |
 | `qc_measure_sequence` | Реализиран | MEASURE с measurement response metadata |
 | `qc_wait_sequence` | Реализиран | WAIT hold/stall stimulus |
+| `qc_reset_sequence` | Реализиран | RESET command stimulus |
 | `qc_branch_sequence` | Реализиран | MEASURE + conditional BRANCH + следваща инструкция |
 | `qc_invalid_opcode_sequence` | Реализиран | Raw invalid opcode injection |
 | `qc_random_instruction_sequence` | Реализиран | Constrained-random валиден instruction stream |
 | `qc_dependency_stress_sequence` | Реализиран | Последователни операции върху общи qubit ресурси |
+| `qc_hazard_sequence` | Реализиран | Явен dependency hazard сценарий с gate/CNOT/measurement зависимости |
+| `qc_queue_overflow_sequence` | Реализиран | Queue pressure/overflow-protection сценарий с WAIT hold и burst зад него |
 | `qc_algorithmic_bell_sequence` | Реализиран | Bell workload |
 | `qc_algorithmic_ghz_sequence` | Реализиран | GHZ workload |
 | `qc_algorithmic_grover_like_sequence` | Реализиран | Grover-like workload |
+| `qc_random_circuit_sampling_sequence` | Реализиран | Random-circuit-sampling-inspired layered workload |
 
 ## Кодов фрагмент 3.11 – Helper функция за flags
 
@@ -930,7 +934,7 @@ Status observation-ът не се публикува само при error фл�
 4. Няма claim за PASS UVM simulation, докато не се изпълни реален simulator run.
 ```
 
-След C7 `qc_agent.sv` и `qc_env.sv` вече свързват `monitor.analysis_port` към scoreboard и coverage subscribers. След C8/C9 съществуват и base test/top-level testbench, така че реалната практическа проверка остава UVM-capable simulator run.
+След C7 `qc_agent.sv` и `qc_env.sv` вече свързват `monitor.analysis_port` към scoreboard и coverage subscribers. След текущата test/top/run фаза съществуват и base test/top-level testbench, така че реалната практическа проверка остава UVM-capable simulator run.
 
 ## 3.5.5 Scoreboard
 
@@ -1662,7 +1666,7 @@ DUT signals
 → qc_coverage
 ```
 
-След C7 UVM средата получи структурно свързан active agent и environment. В следващите стъпки C8/C9 вече са добавени base test, executable test класове, top-level testbench и run script, така че остава simulator bring-up и реална UVM regression проверка.
+След C7 UVM средата получи структурно свързан active agent и environment. В следващите стъпки вече са добавени base test, executable test класове, top-level testbench и run script, така че остава simulator bring-up и реална UVM regression проверка.
 
 ## Как се проверява C7
 
@@ -1680,6 +1684,16 @@ DUT signals
 ---
 
 # 3.6 Test plan
+
+Работният план за UVM тестовете се проследява в три групи:
+
+| Фаза | Група тестове | Реализиран статус |
+|---|---|---|
+| C8 | Directed tests: H, X, CNOT, MEASURE, WAIT, RESET, BRANCH | Реализирани са sequence и executable test класове |
+| C9 | Constrained-random tests: randomized instruction sequences | Реализиран е `qc_random_test` с configurable `item_count` |
+| C10 | Algorithmic/stress/corner tests: Bell, GHZ, Grover-like, random-circuit-sampling-inspired, hazards, queue overflow | Реализирани са algorithmic workloads, hazard и queue overflow/backpressure tests |
+
+Подробното описание, изискванията, coverage целите и code snippets за всеки test са поддържани в `docs/chapter_3_uvm_test_plan.tpl.md`.
 
 ## 3.6.1 Directed tests
 
@@ -1769,6 +1783,7 @@ tb/tb_quantum_controller_top.sv
 | `qc_cnot_test` | `qc_cnot_sequence` | H + CNOT |
 | `qc_measure_test` | `qc_measure_sequence` | MEASURE с measurement response metadata |
 | `qc_wait_test` | `qc_wait_sequence` | WAIT между две gate операции |
+| `qc_reset_test` | `qc_reset_sequence` | RESET command между две gate операции |
 | `qc_branch_test` | `qc_branch_sequence` | MEASURE + conditional branch + по-млада инструкция |
 | `qc_invalid_opcode_test` | `qc_invalid_opcode_sequence` | Raw invalid opcode |
 
@@ -1778,9 +1793,23 @@ tb/tb_quantum_controller_top.sv
 docs/chapter_3_uvm_test_plan.tpl.md
 ```
 
-## 3.6.2 Constrained-random и stress tests
+## Кодов фрагмент 3.41 – RESET directed sequence
 
-Вече има executable UVM constrained-random и stress test класове, но те още не са изпълнявани в симулация.
+От `uvm/qc_sequences.sv`:
+
+```systemverilog
+virtual task body();
+    send_instruction(OP_H,     4'd0, 4'd0, 12'd4, make_flags());
+    send_instruction(OP_RESET, 4'd0, 4'd0, 12'd2, make_flags());
+    send_instruction(OP_X,     4'd0, 4'd0, 12'd4, make_flags());
+endtask
+```
+
+Този directed test покрива `OP_RESET` като нормална instruction-driven команда. Той е различен от reset сигнала `rst_ni`, защото проверява command classification пътя на DUT.
+
+## 3.6.2 Constrained-random, stress и corner tests
+
+Вече има executable UVM constrained-random, stress и corner test класове, но те още не са изпълнявани в симулация.
 
 Реализирани tests:
 
@@ -1788,8 +1817,10 @@ docs/chapter_3_uvm_test_plan.tpl.md
 |---|---|---|
 | `qc_random_test` | `qc_random_instruction_sequence` | Random opcode, qubit, duration и flag комбинации с валиден instruction format |
 | `qc_dependency_stress_test` | `qc_dependency_stress_sequence` | Операции върху едни и същи qubit ресурси за dependency/stall stimulus |
+| `qc_hazard_test` | `qc_hazard_sequence` | Явен hazard сценарий с повтарящи се qubit зависимости |
+| `qc_queue_overflow_test` | `qc_queue_overflow_sequence` | Queue pressure сценарий, който проверява overflow protection чрез backpressure |
 
-## Кодов фрагмент 3.41 – Random test с configurable item_count
+## Кодов фрагмент 3.42 – Random test с configurable item_count
 
 От `uvm/qc_random_tests.sv`:
 
@@ -1811,19 +1842,44 @@ class qc_random_test extends qc_base_test;
 endclass : qc_random_test
 ```
 
-Остават за бъдещо разширяване:
+## Кодов фрагмент 3.43 – Hazard sequence
 
-| Направление | Описание |
-|---|---|
-| Queue pressure | Дълги instruction bursts за full/non-empty queue състояния |
-| Measurement latency variation | Различни latency стойности за measurement result подаване |
-| Branch feedback variation | Conditional branch с expected 0/1 и measurement 0/1 |
-| Illegal injection | По-богато контролирано вкарване на invalid opcode/raw malformed инструкции |
-| Long WAIT stress | WAIT операции с различна продължителност |
+От `uvm/qc_sequences.sv`:
+
+```systemverilog
+virtual task body();
+    send_instruction(OP_H,       4'd0, 4'd0, 12'd10, make_flags());
+    send_instruction(OP_X,       4'd0, 4'd0, 12'd3,  make_flags());
+    send_instruction(OP_CNOT,    4'd1, 4'd0, 12'd8,  make_flags());
+    send_instruction(OP_Z,       4'd1, 4'd0, 12'd3,  make_flags());
+    send_instruction(OP_MEASURE, 4'd0, 4'd0, 12'd6,  make_flags(), '0, 1'b1, 1'b0, 3);
+endtask
+```
+
+Този test е предназначен за dependency tracker и scheduler behavior. Той създава последователни операции върху q0 и q1, така че scoreboard/coverage слоят да наблюдава stall, busy qubit и order preservation сценарии.
+
+## Кодов фрагмент 3.44 – Queue overflow/backpressure sequence
+
+От `uvm/qc_sequences.sv`:
+
+```systemverilog
+send_instruction(OP_WAIT, 4'd0, 4'd0, 12'd24, make_flags());
+
+for (int unsigned i = 0; i < burst_count; i++) begin
+    case (i % 4)
+        0: send_instruction(OP_H,    4'd0, 4'd0, 12'd4, make_flags());
+        1: send_instruction(OP_X,    4'd1, 4'd0, 12'd4, make_flags());
+        2: send_instruction(OP_Z,    4'd2, 4'd0, 12'd4, make_flags());
+        3: send_instruction(OP_CNOT, 4'd3, 4'd2, 12'd6, make_flags());
+    endcase
+end
+```
+
+Този corner test не трябва да форсира физически overflow чрез нарушаване на ready/valid протокола. Driver-ът спазва `instr_ready_o`, а целта е DUT да покаже backpressure и `queue_count_o` да остане в допустимите граници.
 
 ## 3.6.3 Algorithmic workloads
 
-Вече има реализирани executable UVM test класове за начални algorithmic workloads, но те все още не са изпълнявани срещу DUT.
+Вече има реализирани executable UVM test класове за algorithmic workloads, но те все още не са изпълнявани срещу DUT.
 
 Реализираните algorithmic tests са:
 
@@ -1832,8 +1888,9 @@ endclass : qc_random_test
 | `qc_bell_test` | `qc_algorithmic_bell_sequence` | H върху q0, CNOT q0→q1, measurement | Проверка на зависимост между еднокубитна и двукубитна операция |
 | `qc_ghz_test` | `qc_algorithmic_ghz_sequence` | H върху q0, CNOT chain, measurements | Проверка на последователни multi-qubit зависимости |
 | `qc_grover_like_test` | `qc_algorithmic_grover_like_sequence` | H/X/Z/CNOT/MEASURE/conditional BRANCH pattern | Проверка на смесени gate и feedback сценарии |
+| `qc_random_circuit_sampling_test` | `qc_random_circuit_sampling_sequence` | Слоеве от H/X/Z, CNOT и финални measurements | Random-circuit-sampling-inspired workload за opcode/resource/measurement coverage |
 
-## Кодов фрагмент 3.42 – Algorithmic test wrapper
+## Кодов фрагмент 3.45 – Algorithmic test wrapper
 
 От `uvm/qc_algorithmic_tests.sv`:
 
@@ -1857,12 +1914,25 @@ class qc_bell_test extends qc_base_test;
 endclass : qc_bell_test
 ```
 
-Остават за бъдещо добавяне:
+## Кодов фрагмент 3.46 – Random-circuit-sampling-inspired sequence
 
-| Workload | Цел |
-|---|---|
-| Measurement-feedback workload variants | Повече комбинации от expected/result branch outcomes |
-| Random-circuit-inspired workload | По-дълги random gate streams върху различни qubit-и |
+От `uvm/qc_sequences.sv`:
+
+```systemverilog
+for (int unsigned layer = 0; layer < layer_count; layer++) begin
+    send_instruction(pseudo_random_gate(layer, 0), 4'd0, 4'd0, 12'd3, make_flags());
+    send_instruction(pseudo_random_gate(layer, 1), 4'd1, 4'd0, 12'd3, make_flags());
+    send_instruction(pseudo_random_gate(layer, 2), 4'd2, 4'd0, 12'd3, make_flags());
+    send_instruction(pseudo_random_gate(layer, 3), 4'd3, 4'd0, 12'd3, make_flags());
+
+    if ((layer % 2) == 0) begin
+        send_instruction(OP_CNOT, 4'd1, 4'd0, 12'd6, make_flags());
+        send_instruction(OP_CNOT, 4'd3, 4'd2, 12'd6, make_flags());
+    end else begin
+        send_instruction(OP_CNOT, 4'd2, 4'd1, 12'd6, make_flags());
+    end
+end
+```
 
 Тези workloads са алгоритмично мотивирани. Те не трябва да се описват като физическа квантова симулация или като възпроизвеждане на реален quantum backend.
 
@@ -1877,7 +1947,7 @@ scripts/run_uvm.sh
 
 `uvm/tb_qc_uvm_top.sv` е top-level simulation wrapper за UVM средата. Той генерира clock, инстанцира `qc_if`, свързва `rtl/quantum_controller_top.sv` към interface сигналите, задава `virtual qc_if` през `uvm_config_db` и стартира UVM test чрез `run_test()`.
 
-## Кодов фрагмент 3.43 – Top-level DUT и interface инстанциране
+## Кодов фрагмент 3.47 – Top-level DUT и interface инстанциране
 
 От `uvm/tb_qc_uvm_top.sv`:
 
@@ -1905,7 +1975,7 @@ quantum_controller_top #(
 
 В реалния файл са свързани и всички issue, command, measurement, feedback и status/debug изходи на DUT. Този top-level wrapper е мостът между RTL модула и UVM component слоя.
 
-## Кодов фрагмент 3.44 – Подаване на virtual interface и стартиране на UVM test
+## Кодов фрагмент 3.48 – Подаване на virtual interface и стартиране на UVM test
 
 От `uvm/tb_qc_uvm_top.sv`:
 
@@ -1920,7 +1990,7 @@ end
 
 `scripts/run_uvm.sh` е първият run flow за UVM фазата. Той не използва Verilator за UVM, а очаква UVM-capable simulator.
 
-## Кодов фрагмент 3.45 – Списък на executable UVM tests в run script-а
+## Кодов фрагмент 3.49 – Списък на executable UVM tests в run script-а
 
 От `scripts/run_uvm.sh`:
 
@@ -1931,19 +2001,23 @@ TESTS=(
     qc_cnot_test
     qc_measure_test
     qc_wait_test
+    qc_reset_test
     qc_branch_test
     qc_invalid_opcode_test
     qc_random_test
     qc_dependency_stress_test
+    qc_hazard_test
+    qc_queue_overflow_test
     qc_bell_test
     qc_ghz_test
     qc_grover_like_test
+    qc_random_circuit_sampling_test
 )
 ```
 
 Този списък трябва да остане синхронизиран с `uvm/qc_directed_tests.sv`, `uvm/qc_random_tests.sv`, `uvm/qc_algorithmic_tests.sv` и `docs/chapter_3_uvm_test_plan.tpl.md`.
 
-## Кодов фрагмент 3.46 – Simulator detection и отказ при липса на UVM simulator
+## Кодов фрагмент 3.50 – Simulator detection и отказ при липса на UVM simulator
 
 От `scripts/run_uvm.sh`:
 
@@ -1975,9 +2049,9 @@ This script does not run UVM with Verilator.
 
 За Глава 4 това е важно методологично ограничение: UVM кодът може да бъде описан като реализиран, но резултати като PASS, waveform и coverage могат да се включват само след реален run с такъв simulator.
 
-## Как се проверява C9
+## Как се проверява top-level run flow
 
-Минималната текуща проверка на C9 е:
+Минималната текуща проверка на top-level run flow-а е:
 
 ```text
 1. `uvm/tb_qc_uvm_top.sv` инстанцира `qc_if` и `quantum_controller_top`.
@@ -2141,7 +2215,7 @@ docs/chapter_3_uvm_test_plan.tpl.md
 
 # 3.11 Следващи непосредствени стъпки
 
-Следващата реална стъпка след C9 е:
+Следващата реална стъпка след C8/C9/C10 test имплементацията е:
 
 ```text
 UVM simulator bring-up и първи реални regression runs
